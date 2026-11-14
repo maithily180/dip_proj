@@ -1,0 +1,239 @@
+\documentclass[11pt,a4paper]{article}
+% --- Packages ---
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+% --- Section styling ---
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Digital Image Processing - Course Project Proposal}
+\fancyhead[R]{\small \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\setlist[itemize]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\begin{document}
+% ================= TITLE =================
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\LARGE \bfseries Seeing Through the Shake: Text-Aware PSF Estimation \\[4pt] for Blind Motion Deblurring of License Plates \\[4pt] and Low-Texture Text}
+
+\vspace{1.2cm}
+{\large Course Project Proposal}
+
+\vspace{0.4cm}
+{\large Digital Image Processing}
+
+\vspace{2cm}
+{\large
+\begin{tabular}{c}
+\textbf{Submitted by} \\[4pt]
+Inesh Roy (2024112015) \\
+Maithily Gauravkumar Bhala (2024117011) \\
+\end{tabular}
+}
+
+\vspace{1cm}
+
+\vfill
+
+\end{titlepage}
+
+% ================= 1. PROBLEM STATEMENT =================
+\section{Problem Statement}
+
+Motion blur is one of the most common forms of image degradation encountered outside
+controlled laboratory conditions: a hand-held camera shakes during exposure, or a license
+plate moves relative to a traffic camera during capture. Classical blind deblurring recovers
+a sharp image without knowing the blur kernel in advance, by estimating the motion's
+angle and length directly from the image's frequency-domain signature - typically via a
+Radon transform on the Fourier spectrum (for angle) and a cepstral analysis (for length) -
+and then inverting the blur with a non-blind deconvolution step such as Richardson-Lucy.
+This approach is fully interpretable, requires no training data, and needs no learned model,
+which makes it a natural fit for a Digital Image Processing project.
+
+However, this pipeline was developed and is almost always evaluated on natural,
+texture-rich photographs, where strong edges and varied structure give the Radon and
+cepstral estimators a clean signal to lock onto. License plates, road signs, and printed text
+are a fundamentally different class of input: small, low-contrast, and dominated by a
+handful of straight character strokes rather than rich natural texture. This is precisely the
+regime where legibility matters most and where blur is most damaging, yet it is also the
+regime the classical pipeline is least tested on and, we hypothesize, weakest in - because
+the sparse, directional structure of text can be too weak a signal for angle and length
+estimators tuned on natural images, and because an incorrect PSF estimate does not merely
+fail to help but can actively degrade the image further. Closing this specific gap - making
+classical PSF estimation reliable on low-texture text - is the problem this project addresses.
+
+% ================= 2. PROPOSED SOLUTION =================
+\section{Proposed Solution}
+
+We propose a text-aware blind deblurring pipeline built specifically to close the
+natural-image-vs.-text performance gap described above, rather than a generic
+reimplementation of the standard recipe.
+
+\subsection{Core pipeline}
+The backbone of the system follows the established classical approach: the log-magnitude
+Fourier spectrum of the blurred image is analyzed with a Radon transform to recover the
+blur angle, the 2-D cepstrum along that direction is used to recover the blur length, and the
+resulting line-kernel PSF is inverted using Richardson-Lucy deconvolution (with Wiener
+deconvolution implemented as a secondary comparison point).
+
+\subsection{Text-contrast pre-processing}
+Because text and plate regions offer the estimators a weaker directional signal than natural
+photographs, we introduce a pre-processing stage applied before Radon/cepstrum analysis
+that enhances character-stroke edges relative to background texture - operating on an
+edge-enhanced, locally contrast-normalized representation of the image rather than raw
+grayscale. The explicit goal of this stage is not general image enhancement but improving
+the strength of the exact directional and periodic cues the angle and length estimators
+depend on, specifically for this weak-signal input class.
+
+\subsection{Confidence-gated restoration}
+Since an unreliable PSF estimate can actively worsen the image rather than simply fail to
+sharpen it, the pipeline includes a confidence check based on the strength of the detected
+cepstral peak relative to background noise. When this confidence falls below a threshold,
+the system withholds deconvolution and reports low confidence instead of applying an
+unreliable PSF - making restoration a decision the pipeline makes deliberately, not a step
+applied unconditionally.
+
+% ================= 2.4 TEST DATA AND SCOPE =================
+\subsection{Test data}
+The pipeline is validated on three tiers of data, chosen specifically to probe the
+natural-image-vs.-text gap: (i) synthetically blurred license-plate and printed-text crops
+with known ground-truth angle and length, used to measure estimation error directly;
+(ii) the Köhler camera-shake benchmark, used as an established real-blur reference point;
+and (iii) real-world license-plate images from a public license-plate dataset, used for the
+downstream OCR evaluation. We assume a single, spatially uniform blur kernel per image
+throughout. The Köhler benchmark is used only as a global-kernel reference point for real
+camera-shake blur, not to model spatial variation. For the natural-image contrast case in
+Objective~2, we use synthetically blurred crops from a public natural-image set (e.g.\
+Kodak or BSD), not the standard test images (Cameraman, Lena, House, Boat) used
+elsewhere.
+
+\subsection{Out of scope}
+To keep the project distinct from a parallel classmate project tackling the same classical
+pipeline, the following are explicitly out of scope here: (i) spatially-varying blur and
+patch-wise PSF estimation; (ii) Wiener deconvolution as the primary restoration method
+(we use Richardson-Lucy as primary and Wiener only as a secondary comparison); and
+(iii) a head-to-head benchmark of Radon-based versus cepstrum-based estimators, which
+we treat as one combined pipeline. That project instead addresses non-uniform,
+patch-wise blur restoration on natural images with Wiener deconvolution as its primary
+method, and compares the two estimators directly; we refer the reader there for that
+setting.
+
+% ================= 3. OBJECTIVES =================
+\section{Objectives}
+
+\begin{enumerate}
+    \item Implement the core classical pipeline - Radon-based blur-angle estimation,
+    cepstrum-based blur-length estimation, and Richardson-Lucy non-blind
+    deconvolution - and validate it against known ground-truth kernels using
+    synthetically blurred images and the Köhler camera-shake benchmark.
+    \item Quantify, with a controlled sweep across blur angle, blur length, and noise level
+    on uniform synthetic blur, the performance gap between natural, texture-rich images
+    and low-texture, text-dominated images (license plates and printed text) for this
+    classical pipeline.
+    \item Design a text-contrast pre-processing stage targeted at strengthening the
+    directional/periodic signal available to the Radon and cepstral estimators on
+    low-texture inputs, and measure its effect against the same sweep used in
+    Objective~2.
+    \item Implement a confidence-gating mechanism that withholds deconvolution when
+    the estimated PSF is judged unreliable, and evaluate how often it correctly avoids
+    a harmful restoration versus how often it unnecessarily withholds a good one.
+    \item Evaluate the complete text-aware pipeline on real-world license-plate images
+    from a public dataset, using OCR accuracy before vs.\ after restoration as the
+    primary evaluation criterion, and compare against the non-text-aware baseline
+    from Objective~1.
+\end{enumerate}
+
+% ================= 4. DELIVERABLES =================
+\section{Deliverables}
+
+\begin{itemize}
+    \item \textbf{Working implementation} of the full text-aware pipeline (PSF
+    estimation, text-contrast pre-processing, confidence gating, non-blind
+    deconvolution), implemented in Python using standard scientific-computing
+    libraries.
+    \item \textbf{Quantitative evaluation report} comparing the baseline classical
+    pipeline against the text-aware pipeline, centered on OCR accuracy on real
+    license-plate images before and after restoration, with angle/length estimation
+    error and restored PSNR/SSIM on synthetic text/plate crops and the Köhler
+    benchmark reported as supporting metrics.
+    \item \textbf{Qualitative results gallery} of blurred vs.\ restored image pairs across a
+    representative range of blur conditions, including documented cases where
+    confidence gating correctly withholds restoration.
+    \item \textbf{Project codebase} with a reproducible evaluation script.
+    \item \textbf{Final presentation and report} summarizing the method, evaluation, and
+    findings.
+\end{itemize}
+
+% ================= REFERENCES =================
+\begin{thebibliography}{99}
+
+\bibitem{fergus2006}
+R.~Fergus, B.~Singh, A.~Hertzmann, S.~T.~Roweis, and W.~T.~Freeman,
+``Removing Camera Shake from a Single Photograph,''
+\emph{ACM Transactions on Graphics (Proc.\ SIGGRAPH)}, vol.~25, no.~3, pp.~787-794, 2006.
+
+\bibitem{levin2009}
+A.~Levin, Y.~Weiss, F.~Durand, and W.~T.~Freeman,
+``Understanding and Evaluating Blind Deconvolution Algorithms,''
+in \emph{Proc.\ IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}, 2009.
+
+\bibitem{radon-license-plate}
+Y.~Wang et al.,
+``A New Method and Implementation of Blind Restoration Algorithm for Moving Fuzzy
+License Plate Image Based on Frequency-Domain Characteristics,''
+\emph{IEEE Access}, 2021.
+
+\bibitem{radon-blur-improved}
+X.~Zhou, Y.~Zhang, and W.~Zhou,
+``Improved Estimation of Motion Blur Parameters for Restoration from a Single Image,''
+\emph{PLOS ONE}, 2020.
+
+\bibitem{cepstrum-bitplane}
+V.~Deshpande and M.~Patnaik,
+``A Novel Modified Cepstral Based Technique for Blind Estimation of Motion Blur,''
+\emph{Optik}, vol.~124, no.~24, pp.~6994-7000, 2013.
+
+\bibitem{richardson1972}
+W.~H.~Richardson,
+``Bayesian-Based Iterative Method of Image Restoration,''
+\emph{Journal of the Optical Society of America}, vol.~62, no.~1, pp.~55-59, 1972.
+
+\bibitem{lucy1974}
+L.~B.~Lucy,
+``An Iterative Technique for the Rectification of Observed Distributions,''
+\emph{The Astronomical Journal}, vol.~79, no.~6, pp.~745-754, 1974.
+
+\bibitem{lpblur2024}
+D.~Zhang et al.,
+``A Dataset and Model for Realistic License Plate Deblurring,''
+\emph{arXiv preprint arXiv:2404.13677}, 2024.
+
+\bibitem{ccpd2018}
+Z.~Xu et al.,
+``Towards End-to-End License Plate Detection and Recognition: A Large Dataset and
+Baseline,''
+in \emph{Proc.\ European Conference on Computer Vision (ECCV)}, 2018.
+
+\bibitem{kohler2012}
+R.~Köhler, M.~Hirsch, B.~Mohler, B.~Schölkopf, and S.~Harmeling,
+``Recording and Playback of Camera Shake: Benchmarking Blind Deconvolution with a
+Real-World Database,''
+in \emph{Proc.\ European Conference on Computer Vision (ECCV)}, 2012.
+
+\end{thebibliography}
+
+\end{document}

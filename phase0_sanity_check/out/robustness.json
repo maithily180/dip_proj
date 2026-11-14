@@ -1,0 +1,194 @@
+[
+  {
+    "image": "text",
+    "noise": 0.0,
+    "angle_err_mean": 38.121546961325976,
+    "angle_err_max": 38.121546961325976,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 5.0
+  },
+  {
+    "image": "text",
+    "noise": 0.005,
+    "angle_err_mean": 60.0,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 6.0
+  },
+  {
+    "image": "text",
+    "noise": 0.01,
+    "angle_err_mean": 60.0,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 6.0
+  },
+  {
+    "image": "text",
+    "noise": 0.02,
+    "angle_err_mean": 60.0,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 9.2
+  },
+  {
+    "image": "text",
+    "noise": 0.03,
+    "angle_err_mean": 60.0,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 15.2
+  },
+  {
+    "image": "text",
+    "noise": 0.05,
+    "angle_err_mean": 60.0,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 15.2
+  },
+  {
+    "image": "camera",
+    "noise": 0.0,
+    "angle_err_mean": 7.6243093922651894,
+    "angle_err_max": 7.6243093922651894,
+    "frac_angle_err_gt15": 0.0,
+    "length_err_mean": 0.0
+  },
+  {
+    "image": "camera",
+    "noise": 0.005,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 42.6
+  },
+  {
+    "image": "camera",
+    "noise": 0.01,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 40.6
+  },
+  {
+    "image": "camera",
+    "noise": 0.02,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 40.6
+  },
+  {
+    "image": "camera",
+    "noise": 0.03,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 40.6
+  },
+  {
+    "image": "camera",
+    "noise": 0.05,
+    "angle_err_mean": 41.90055248618784,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 35.8
+  },
+  {
+    "image": "checker",
+    "noise": 0.0,
+    "angle_err_mean": 2.3204419889502788,
+    "angle_err_max": 2.3204419889502788,
+    "frac_angle_err_gt15": 0.0,
+    "length_err_mean": 0.0
+  },
+  {
+    "image": "checker",
+    "noise": 0.005,
+    "angle_err_mean": 22.740331491712706,
+    "angle_err_max": 23.53591160220995,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 16.0
+  },
+  {
+    "image": "checker",
+    "noise": 0.01,
+    "angle_err_mean": 25.922651933701662,
+    "angle_err_max": 35.469613259668506,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 16.0
+  },
+  {
+    "image": "checker",
+    "noise": 0.02,
+    "angle_err_mean": 34.47513812154696,
+    "angle_err_max": 34.47513812154696,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 15.6
+  },
+  {
+    "image": "checker",
+    "noise": 0.03,
+    "angle_err_mean": 37.59116022099448,
+    "angle_err_max": 56.022099447513824,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 15.6
+  },
+  {
+    "image": "checker",
+    "noise": 0.05,
+    "angle_err_mean": 36.0,
+    "angle_err_max": 62.983425414364646,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 16.0
+  },
+  {
+    "image": "coins",
+    "noise": 0.0,
+    "angle_err_mean": 9.281767955801115,
+    "angle_err_max": 9.281767955801115,
+    "frac_angle_err_gt15": 0.0,
+    "length_err_mean": 0.0
+  },
+  {
+    "image": "coins",
+    "noise": 0.005,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 12.2
+  },
+  {
+    "image": "coins",
+    "noise": 0.01,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 17.2
+  },
+  {
+    "image": "coins",
+    "noise": 0.02,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 22.0
+  },
+  {
+    "image": "coins",
+    "noise": 0.03,
+    "angle_err_mean": 29.50276243093923,
+    "angle_err_max": 29.502762430939228,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 28.0
+  },
+  {
+    "image": "coins",
+    "noise": 0.05,
+    "angle_err_mean": 35.80110497237568,
+    "angle_err_max": 60.0,
+    "frac_angle_err_gt15": 1.0,
+    "length_err_mean": 28.4
+  }
+]
