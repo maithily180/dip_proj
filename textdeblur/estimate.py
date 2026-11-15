@@ -47,8 +47,10 @@ class EstimatorConfig:
                       longer image side.
     angle_step      : coarse angular resolution of the Radon sweep (degrees).
     refine          : re-sweep +-1.5 deg around the best angle at 0.25 deg.
-    cutoff          : radial band limit as a fraction of Nyquist, or ``"auto"``
-                      to stop where the spectrum reaches its noise floor.
+    cutoff          : radial band limit as a fraction of Nyquist, ``"auto"``
+                      to stop where the spectrum reaches its noise floor, or
+                      a tuple of such values: the search is then run once per
+                      band and the most directional estimate is kept.
     notch_grid      : clip the 8x8 block-grid lines that JPEG compression adds
                       to the spectrum.
     angular_detrend : subtract, at every lag, the median over directions; this
@@ -62,7 +64,7 @@ class EstimatorConfig:
     max_length: float | None = None
     angle_step: float = 1.0
     refine: bool = True
-    cutoff: float | str = 1.0
+    cutoff: float | str | tuple = 1.0
     notch_grid: bool = False
     angular_detrend: bool = False
     min_size: int = 256
@@ -80,12 +82,14 @@ class BlurEstimate:
     depth: float                 # depth of the winning cepstral dip (>0)
     confidence: float            # dip depth in robust sigmas above background
     peak_ratio: float            # winning dip / best competing dip elsewhere
+    angular_z: float = 0.0       # winning direction vs. other directions at the same lag
     angles: np.ndarray = field(repr=False, default=None)      # coarse sweep angles
     lags: np.ndarray = field(repr=False, default=None)        # lag axis of ``profiles``
     profiles: np.ndarray = field(repr=False, default=None)    # (n_angles, n_lags)
     spectrum: np.ndarray = field(repr=False, default=None)    # processed log-spectrum
     cutoff: float = 1.0
     config: EstimatorConfig = field(repr=False, default=None)
+    candidates: list = field(repr=False, default=None)        # per-band estimates
 
     def psf(self) -> np.ndarray:
         """The estimated line kernel."""
@@ -199,20 +203,9 @@ def _parabolic_min(y: np.ndarray, i: int) -> float:
     return float(i + np.clip(0.5 * (a - c) / denom, -0.5, 0.5))
 
 
-def estimate_blur(img: np.ndarray, config: EstimatorConfig | None = None) -> BlurEstimate:
-    """Estimate the linear motion PSF of a blurred image.
-
-    ``img`` may be grayscale or RGB in [0, 1].  Returns a ``BlurEstimate``.
-    """
-    cfg = config or BASELINE
-    g = preprocess(img, cfg.preprocess)
-    h, w = g.shape
-    n = max(cfg.min_size, next_pow2(max(h, w)))
-
-    spec = log_spectrum(g, size=n, window=cfg.window)
-    if cfg.notch_grid:
-        spec = clip_block_grid(spec)
-    cutoff = auto_cutoff(spec) if cfg.cutoff == "auto" else float(cfg.cutoff)
+def _search(spec: np.ndarray, cfg: EstimatorConfig, cutoff: float, h: int, w: int) -> BlurEstimate:
+    """Joint (angle, length) search on one band-limited log-spectrum."""
+    n = spec.shape[0]
     taper = _disc_taper(n, cutoff)
     inside = taper > 0
     spec_w = (spec - np.median(spec[inside])) * taper
@@ -255,6 +248,15 @@ def estimate_blur(img: np.ndarray, config: EstimatorConfig | None = None) -> Blu
     mad = float(np.median(np.abs(region - med))) * 1.4826 + 1e-12
     confidence = (med - float(region[ia, il])) / mad
 
+    # directional contrast: the winning direction against all other
+    # directions *at the same lag*.  An isotropic ring (soft or band-limited
+    # image, defocus) is deep in every direction and scores ~0 here, whereas a
+    # genuine linear-motion dip exists in one direction only.
+    ring = region[:, il]
+    rmed = float(np.median(ring))
+    rmad = float(np.median(np.abs(ring - rmed))) * 1.4826 + 1e-12
+    angular_z = (rmed - float(ring[ia])) / rmad
+
     # best competing dip outside the neighbourhood of the winner
     dth = np.abs(((angles - angles[ia] + 90) % 180) - 90)[:, None]
     dq = np.abs(np.arange(region.shape[1]) - il)[None, :]
@@ -264,15 +266,52 @@ def estimate_blur(img: np.ndarray, config: EstimatorConfig | None = None) -> Blu
 
     return BlurEstimate(
         angle=angle % 180.0, length=float(length), depth=depth, confidence=float(confidence),
-        peak_ratio=peak_ratio, angles=angles, lags=np.arange(prof.shape[1]), profiles=prof,
-        spectrum=spec_w, cutoff=cutoff, config=cfg,
+        peak_ratio=peak_ratio, angular_z=float(angular_z), angles=angles,
+        lags=np.arange(prof.shape[1]), profiles=prof, spectrum=spec_w, cutoff=cutoff, config=cfg,
     )
+
+
+def estimate_blur(img: np.ndarray, config: EstimatorConfig | None = None) -> BlurEstimate:
+    """Estimate the linear motion PSF of a blurred image.
+
+    ``img`` may be grayscale or RGB in [0, 1].  Returns a ``BlurEstimate``.
+    When ``config.cutoff`` is a tuple, the search is repeated for every band
+    limit and the estimate with the strongest directional contrast
+    (``angular_z``) is returned; ``candidates`` then holds all of them.
+    """
+    cfg = config or BASELINE
+    g = preprocess(img, cfg.preprocess)
+    h, w = g.shape
+    n = max(cfg.min_size, next_pow2(max(h, w)))
+
+    spec = log_spectrum(g, size=n, window=cfg.window)
+    if cfg.notch_grid:
+        spec = clip_block_grid(spec)
+    bands = cfg.cutoff if isinstance(cfg.cutoff, tuple) else (cfg.cutoff,)
+    auto = None
+    cands = []
+    for c in bands:
+        if c == "auto":
+            auto = auto_cutoff(spec) if auto is None else auto
+            c = auto
+        cands.append(_search(spec, cfg, float(c), h, w))
+    best = max(cands, key=lambda e: e.angular_z) if len(cands) > 1 else cands[0]
+    best.candidates = cands
+    return best
 
 
 #: The classical pipeline as it stands in the literature: plain luminance in,
 #: Radon + cepstrum out.
 BASELINE = EstimatorConfig()
 
-#: The text-aware estimator (pre-processing stage switched on).  The concrete
-#: settings are chosen on the development split; see ``experiments/``.
-TEXT_AWARE = EstimatorConfig(preprocess="text")
+#: The text-aware estimator.  Plates and printed text in real photographs are
+#: small, upsampled and compressed, so the upper part of their spectrum holds
+#: noise and compression residue rather than blur nulls - and, unlike for a
+#: texture-rich natural image, there is little genuine signal there to begin
+#: with.  The search is therefore repeated with the spectrum limited to the
+#: full band, half the band and 0.3 of the band, and the estimate whose dip is
+#: most *directional* (``angular_z``) wins.  Chosen on the development data
+#: (synthetic dev split and LPBlur dev subset); see ``docs/DESIGN_DECISIONS.md``.
+#: Classical contrast/edge enhancement was tested for this role and rejected:
+#: it amplifies exactly the high-frequency noise that hides the nulls.
+TEXT_AWARE = EstimatorConfig(cutoff=(1.0, 0.5, 0.3))

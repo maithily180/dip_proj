@@ -3,9 +3,10 @@
 One *trial* = one sharp source blurred with one (angle, length) at one noise
 level.  For every trial, every requested estimator variant is run on the same
 blurred crop, so variants are compared on identical data.  For variants listed
-in ``restore``, the image is also restored with the estimated PSF so that the
+in ``restore_for``, the image is also restored with the estimated PSF so that the
 outcome can be judged in image space (PSNR/SSIM against the sharp crop, and
-against the true-PSF restoration as the ceiling).
+against the true-PSF restoration as the ceiling); for variants in
+``agreement_for`` the split-half agreement used by the gate is recorded.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from common import (
 )
 from textdeblur.deconv import richardson_lucy
 from textdeblur.estimate import EstimatorConfig, estimate_blur
+from textdeblur.gate import consistency
 from textdeblur.metrics import angle_error, psnr, ssim
 from textdeblur.psf import motion_psf
 from textdeblur.radon_angle import estimate_two_stage
@@ -32,7 +34,7 @@ def restore(blurred: np.ndarray, psf: np.ndarray) -> np.ndarray:
 
 
 def _trial(job):
-    src, length, angle, sigma, configs, restore_for, full_frame = job
+    src, length, angle, sigma, configs, restore_for, full_frame, agreement_for = job
     sharp, blurred = make_trial(src, length, angle, sigma, full_frame=full_frame)
     cls = "natural_full" if full_frame else src.cls
     base = dict(cls=cls, image=src.name, split=src.split, length=length, angle=angle, sigma=sigma)
@@ -56,7 +58,10 @@ def _trial(job):
         row = dict(base, variant=name, angle_est=est.angle, length_est=est.length,
                    angle_err=a_err, length_err=l_err,
                    success=bool(a_err <= ANGLE_TOL and l_err <= LENGTH_TOL),
-                   confidence=est.confidence, peak_ratio=est.peak_ratio, depth=est.depth)
+                   confidence=est.confidence, peak_ratio=est.peak_ratio, depth=est.depth,
+                   angular_z=est.angular_z, cutoff=est.cutoff)
+        if name in agreement_for:
+            row["agreement"] = consistency(blurred, est)
         if name in restore_for:
             r_est = restore(blurred, est.psf())
             row.update(quality, psnr_est=psnr(r_est, sharp, BORDER), ssim_est=ssim(r_est, sharp, BORDER))
@@ -71,14 +76,16 @@ def run_sweep(
     restore_for: tuple[str, ...] = (),
     full_frame_natural: bool = False,
     desc: str = "sweep",
+    agreement_for: tuple[str, ...] = (),
 ) -> pd.DataFrame:
     """Run every variant in ``configs`` over the full angle x length x noise
     grid for the chosen classes and split.  Returns one row per (trial, variant)."""
     srcs: list[Source] = [s for s in sources() if s.cls in classes and (split is None or s.split == split)]
-    jobs = [(s, L, a, n, configs, tuple(restore_for), False)
+    ag = tuple(agreement_for)
+    jobs = [(s, L, a, n, configs, tuple(restore_for), False, ag)
             for s in srcs for L in LENGTHS for a in ANGLES for n in NOISES]
     if full_frame_natural:
-        jobs += [(s, L, a, n, configs, tuple(restore_for), True)
+        jobs += [(s, L, a, n, configs, tuple(restore_for), True, ag)
                  for s in sources() if s.cls == "natural" and (split is None or s.split == split)
                  for L in LENGTHS for a in ANGLES for n in NOISES]
     rows = [r for chunk in pmap(_trial, jobs, desc=desc, chunksize=2) for r in chunk]

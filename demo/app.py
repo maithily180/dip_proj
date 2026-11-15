@@ -32,7 +32,7 @@ if str(ROOT) not in sys.path:
 from textdeblur.blur import add_noise, convolve  # noqa: E402
 from textdeblur.data import imread, render_text_page, to_gray  # noqa: E402
 from textdeblur.estimate import BASELINE, TEXT_AWARE, estimate_blur  # noqa: E402
-from textdeblur.gate import DEFAULT_GATE, GateConfig, decide  # noqa: E402
+from textdeblur.gate import DEFAULT_GATE, GateConfig, consistency, decide  # noqa: E402
 from textdeblur.metrics import laplacian_variance, psnr  # noqa: E402
 from textdeblur.pipeline import PipelineConfig, restore  # noqa: E402
 from textdeblur.psf import motion_psf  # noqa: E402
@@ -120,11 +120,12 @@ with st.sidebar:
     choice = st.selectbox("...or pick a sample", list(samples) or ["(no samples found)"])
 
     st.header("Estimator")
-    variant = st.radio("PSF estimator", ["Text-aware (pre-processing on)", "Baseline (plain grayscale)"])
+    variant = st.radio("PSF estimator", ["Text-aware (multi-band search)", "Baseline (full band)"])
     st.header("Confidence gate")
     use_gate = st.checkbox("Refuse when the estimate is unreliable", value=True)
-    thr = st.slider("Minimum confidence (robust sigma)", 0.0, 30.0, float(DEFAULT_GATE.min_confidence), 0.5)
-    ratio = st.slider("Minimum peak ratio", 0.0, 3.0, float(DEFAULT_GATE.min_peak_ratio), 0.05)
+    thr = st.slider("Minimum dip depth (robust sigma)", 0.0, 30.0, float(DEFAULT_GATE.min_confidence), 0.5)
+    angz = st.slider("Minimum directional contrast (sigma)", 0.0, 15.0, float(DEFAULT_GATE.min_angular_z), 0.5)
+    agree_min = st.slider("Minimum image halves that agree (of 4)", 0, 4, int(DEFAULT_GATE.min_agreement))
 
     st.header("Restoration")
     method = st.radio("Deconvolution", ["Richardson-Lucy", "Wiener"])
@@ -158,7 +159,9 @@ pipe = PipelineConfig(estimator=est_cfg, method="rl" if method.startswith("Rich"
 # ---------------------------------------------------------------- pipeline --
 
 est = estimate_blur(img, est_cfg)
-decision = decide(est, GateConfig(thr, ratio)) if use_gate else None
+gate = GateConfig(min_confidence=thr, min_angular_z=angz, min_agreement=agree_min)
+agreement = consistency(img, est, est_cfg) if use_gate and gate.needs_agreement else None
+decision = decide(est, gate, agreement) if use_gate else None
 
 if mode.startswith("Semi"):
     c1, c2 = st.columns(2)
@@ -179,18 +182,20 @@ else:
 col1, col2, col3 = st.columns([5, 3, 5])
 with col1:
     st.subheader("Blurred input")
-    st.image(np.clip(img, 0, 1), use_container_width=True)
+    st.image(np.clip(img, 0, 1), width="stretch")
 with col2:
     st.subheader("Estimated PSF")
     st.pyplot(psf_figure(psf, f"length {est.length:.1f} px, angle {est.angle:.1f} deg"
                          if not mode.startswith("Semi") else "user-supplied PSF"))
     st.metric("Confidence", f"{est.confidence:.1f} sigma")
-    st.metric("Peak ratio", f"{est.peak_ratio:.2f}")
+    st.metric("Directional contrast", f"{est.angular_z:.1f} sigma")
+    if agreement is not None:
+        st.metric("Halves that agree", f"{agreement} / 4")
     if true is not None:
         st.caption(f"True PSF: length {true[1]:g} px, angle {true[0]:g} deg")
 with col3:
     st.subheader("Restored output" if accepted else "Output (restoration withheld)")
-    st.image(np.clip(restored, 0, 1), use_container_width=True)
+    st.image(np.clip(restored, 0, 1), width="stretch")
 
 if accepted:
     st.success(f"Restored. {verdict}")
@@ -212,5 +217,7 @@ with st.expander("How the estimate was made (frequency-domain evidence)", expand
         "stripes perpendicular to the motion, spaced 1/L apart. The Radon transform projects the "
         "log-spectrum along every direction; the 1-D Fourier transform of each projection is a radial "
         "slice of the cepstrum. The direction and lag of the deepest negative dip give the blur angle "
-        "and length, and how far that dip stands out from the rest of the map is the confidence."
+        "and length. The gate asks how far that dip stands out from the rest of the map, whether it "
+        "exists in one direction only (a linear blur) rather than in all of them (defocus, soft content), "
+        "and whether the image halves give the same answer (a uniform blur)."
     )

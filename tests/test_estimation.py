@@ -8,7 +8,7 @@ from textdeblur.data import render_text_page
 from textdeblur.estimate import (
     BASELINE, TEXT_AWARE, EstimatorConfig, clip_block_grid, estimate_blur, radon_transform,
 )
-from textdeblur.gate import GateConfig, auc, calibrate_threshold, confusion, decide, roc_curve
+from textdeblur.gate import GateConfig, auc, calibrate_threshold, confusion, consistency, decide, roc_curve
 from textdeblur.metrics import angle_error, psnr
 from textdeblur.pipeline import BASELINE_PIPELINE, PipelineConfig, deblur, deblur_with_psf
 from textdeblur.preprocess import PREPROCESSORS, preprocess
@@ -134,6 +134,37 @@ def test_gate_decisions():
     refused = decide(est, GateConfig(min_confidence=1e9))
     assert not refused.accept and "weak" in refused.reason
     assert not decide(est, GateConfig(min_peak_ratio=1e9)).accept
+
+
+def test_directional_and_agreement_tests():
+    _, b = make(15, 30, hw=(160, 320))
+    est = estimate_blur(b, BASELINE.with_(max_length=40))
+    assert est.angular_z > 3.0                    # a linear-motion dip is directional
+    assert consistency(b, est) >= 3               # and the same in the image halves
+    assert not decide(est, GateConfig(min_angular_z=1e9)).accept
+    with pytest.raises(ValueError):               # agreement must be supplied when required
+        decide(est, GateConfig(min_agreement=2))
+    ok = decide(est, GateConfig(min_agreement=2), agreement=4)
+    assert ok.accept and "4/4" in ok.reason
+    assert not decide(est, GateConfig(min_agreement=3), agreement=1).accept
+
+
+def test_isotropic_blur_is_not_directional():
+    from scipy import ndimage
+    sharp, _ = make(15, 30)
+    est_iso = estimate_blur(ndimage.gaussian_filter(sharp, 2.5), BASELINE.with_(max_length=40))
+    _, b = make(15, 30)
+    est_lin = estimate_blur(b, BASELINE.with_(max_length=40))
+    assert est_lin.angular_z > est_iso.angular_z
+
+
+def test_multiband_search_keeps_most_directional_band():
+    _, b = make(19, 120, sigma=0.01)
+    est = estimate_blur(b, TEXT_AWARE.with_(max_length=40))
+    assert len(est.candidates) == 3
+    assert est.angular_z == max(c.angular_z for c in est.candidates)
+    assert est.cutoff in (1.0, 0.5, 0.3)
+    assert angle_error(est.angle, 120) < 5 and abs(est.length - 19) < 2
 
 
 def test_roc_and_calibration():

@@ -8,8 +8,9 @@ Every candidate is inserted in front of the *same* estimator and run on the
   magnitude, local contrast normalisation, homomorphic filtering, and the
   edge-enhanced locally-normalised combination ``text``);
 * the stage the analysis led to instead: restricting the spectrum to the band
-  where the image has signal above its noise floor (``band``), on its own and
-  combined with the above.
+  where the image has signal above its noise floor - a single SNR-adaptive
+  limit (``band``), fixed limits (``band0.5``, ``band0.3``), combinations with
+  contrast enhancement, and the final multi-band search (``text_aware``).
 
 Outputs: results/csv/03_preprocess.csv, 03_summary.csv, results/figures/03_*.png
 """
@@ -34,6 +35,8 @@ VARIANTS = {
     "gradmag": BASELINE.with_(preprocess="gradmag"),
     "text": BASELINE.with_(preprocess="text"),
     "band": BASELINE.with_(cutoff="auto"),
+    "band0.5": BASELINE.with_(cutoff=0.5),
+    "band0.3": BASELINE.with_(cutoff=0.3),
     "band+clahe": BASELINE.with_(cutoff="auto", preprocess="clahe"),
     "band+lcn": BASELINE.with_(cutoff="auto", preprocess="lcn"),
     "text_aware": TEXT_AWARE,
@@ -42,14 +45,15 @@ LABELS = {
     "gray": "plain grayscale (baseline)", "clahe": "CLAHE", "unsharp": "unsharp mask",
     "homomorphic": "homomorphic", "lcn": "local contrast norm.", "highpass": "Gaussian high-pass",
     "dog": "difference of Gaussians", "laplacian": "Laplacian", "gradmag": "gradient magnitude",
-    "text": "LCN + Laplacian (proposed)", "band": "signal-band limit", "band+clahe": "band + CLAHE",
-    "band+lcn": "band + LCN", "text_aware": "text-aware stage (final)",
+    "text": "LCN + Laplacian (proposed)", "band": "adaptive band limit", "band0.5": "band limit 0.5", "band0.3": "band limit 0.3", "band+clahe": "band + CLAHE",
+    "band+lcn": "band + LCN", "text_aware": "multi-band search (final)",
 }
 ORDER = ["natural", "text", "plate"]
 
 
 def main():
-    df = run_sweep(VARIANTS, split="test", restore_for=("gray", "text_aware"), desc="pre-processing sweep")
+    df = run_sweep(VARIANTS, split="test", restore_for=("gray", "text_aware"),
+                   agreement_for=("gray", "text_aware"), desc="pre-processing sweep")
     df.to_csv(CSV / "03_preprocess.csv", index=False)
     summ = summary(df)
     summ.to_csv(CSV / "03_summary.csv", index=False)

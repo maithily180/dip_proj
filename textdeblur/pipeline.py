@@ -16,7 +16,7 @@ import numpy as np
 
 from .deconv import richardson_lucy, wiener
 from .estimate import BASELINE, TEXT_AWARE, BlurEstimate, EstimatorConfig, estimate_blur
-from .gate import DEFAULT_GATE, GateConfig, GateDecision, decide
+from .gate import DEFAULT_GATE, GateConfig, GateDecision, consistency, decide
 from .psf import motion_psf
 
 __all__ = [
@@ -82,7 +82,10 @@ def deblur(img: np.ndarray, config: PipelineConfig | None = None) -> DeblurResul
     img = np.asarray(img, dtype=float)
     est = estimate_blur(img, cfg.estimator)
     psf = est.psf()
-    decision = decide(est, cfg.gate) if cfg.gate is not None else None
+    decision = None
+    if cfg.gate is not None:
+        agree = consistency(img, est, cfg.estimator) if cfg.gate.needs_agreement else None
+        decision = decide(est, cfg.gate, agree)
     if decision is not None and not decision.accept:
         return DeblurResult(img.copy(), False, decision.reason, est, psf, decision)
     reason = decision.reason if decision is not None else "gate disabled"

@@ -16,7 +16,10 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+import cv2
 import numpy as np
+
+cv2.setNumThreads(1)
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:

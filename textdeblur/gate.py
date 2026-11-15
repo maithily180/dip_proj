@@ -6,11 +6,20 @@ ghost edges that leave the image *worse* than the blurred input.  The gate
 turns that silent failure into an explicit "not confident - image returned
 unchanged".
 
-The decision variable is the strength of the detected cepstral dip relative to
-the background of the search region (``BlurEstimate.confidence``, in robust
-standard deviations).  A second, optional test requires the winning dip to
-beat the best competing dip elsewhere by a margin (``peak_ratio``), which
-rejects ambiguous spectra with several comparable candidates.
+Four tests are available; each is switched off by a threshold of 0.
+
+* ``confidence``  - depth of the winning cepstral dip against the background
+  of the whole (direction, lag) search region, in robust standard deviations;
+* ``angular_z``   - depth of the winning dip against the *other directions at
+  the same lag*.  Isotropic structure (soft or band-limited content, defocus,
+  noise texture) is deep in every direction and scores near zero, a genuine
+  linear-motion dip exists in one direction only;
+* ``peak_ratio``  - winning dip over the best competing dip elsewhere, which
+  rejects spectra with several comparable candidates;
+* ``agreement``   - a uniform blur is the same everywhere, so the estimate is
+  repeated on the left/right and top/bottom halves of the image and the
+  number of halves (0-4) that reproduce it is counted.  Defocus, non-uniform
+  shake and compression artefacts rarely give the same answer twice.
 """
 from __future__ import annotations
 
@@ -18,11 +27,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .estimate import BlurEstimate
+from .estimate import BlurEstimate, EstimatorConfig, estimate_blur
+from .psf import angle_diff
 
 __all__ = [
     "GateConfig", "GateDecision", "decide", "roc_curve", "auc", "calibrate_threshold",
-    "confusion", "DEFAULT_GATE",
+    "confusion", "consistency", "DEFAULT_GATE",
 ]
 
 
@@ -31,7 +41,13 @@ class GateConfig:
     """Thresholds of the confidence gate."""
 
     min_confidence: float = 0.0
+    min_angular_z: float = 0.0
     min_peak_ratio: float = 0.0
+    min_agreement: int = 0
+
+    @property
+    def needs_agreement(self) -> bool:
+        return self.min_agreement > 0
 
 
 @dataclass(frozen=True)
@@ -40,16 +56,47 @@ class GateDecision:
     reason: str
     confidence: float
     peak_ratio: float
+    angular_z: float = 0.0
+    agreement: int | None = None
 
 
-def decide(estimate: BlurEstimate, gate: GateConfig) -> GateDecision:
-    """Accept or refuse an estimate."""
-    c, r = estimate.confidence, estimate.peak_ratio
+def consistency(img: np.ndarray, estimate: BlurEstimate, config: EstimatorConfig | None = None,
+                angle_tol: float = 10.0, length_tol: float = 0.15) -> int:
+    """Number of image halves (left, right, top, bottom) whose own estimate
+    reproduces ``estimate`` (angle within ``angle_tol`` degrees and length
+    within max(2 px, ``length_tol`` x length))."""
+    cfg = config or estimate.config
+    h, w = img.shape[:2]
+    full_max = cfg.max_length if cfg.max_length is not None else 0.3 * max(h, w)
+    count = 0
+    for sub in (img[:, : w // 2], img[:, w // 2 :], img[: h // 2], img[h // 2 :]):
+        try:
+            e = estimate_blur(sub, cfg.with_(max_length=min(full_max, 0.45 * max(sub.shape[:2]))))
+        except ValueError:
+            continue
+        if angle_diff(e.angle, estimate.angle) <= angle_tol and                 abs(e.length - estimate.length) <= max(2.0, length_tol * estimate.length):
+            count += 1
+    return count
+
+
+def decide(estimate: BlurEstimate, gate: GateConfig, agreement: int | None = None) -> GateDecision:
+    """Accept or refuse an estimate.  ``agreement`` (from ``consistency``) is
+    required only when ``gate.min_agreement > 0``."""
+    c, r, z = estimate.confidence, estimate.peak_ratio, estimate.angular_z
+    d = lambda ok, why: GateDecision(ok, why, c, r, z, agreement)
     if c < gate.min_confidence:
-        return GateDecision(False, f"cepstral dip too weak ({c:.1f} < {gate.min_confidence:.1f} sigma)", c, r)
+        return d(False, f"cepstral dip too weak ({c:.1f} < {gate.min_confidence:.1f} sigma)")
+    if z < gate.min_angular_z:
+        return d(False, f"dip not directional ({z:.1f} < {gate.min_angular_z:.1f} sigma across angles)")
     if r < gate.min_peak_ratio:
-        return GateDecision(False, f"ambiguous: rival dip nearly as deep (ratio {r:.2f} < {gate.min_peak_ratio:.2f})", c, r)
-    return GateDecision(True, f"confident ({c:.1f} sigma, ratio {r:.2f})", c, r)
+        return d(False, f"ambiguous: rival dip nearly as deep (ratio {r:.2f} < {gate.min_peak_ratio:.2f})")
+    if gate.min_agreement > 0:
+        if agreement is None:
+            raise ValueError("this gate needs the split-half agreement; pass consistency(...)")
+        if agreement < gate.min_agreement:
+            return d(False, f"not uniform: only {agreement}/4 image halves agree (< {gate.min_agreement})")
+    extra = f", {agreement}/4 halves agree" if agreement is not None else ""
+    return d(True, f"confident ({c:.1f} sigma, directional {z:.1f} sigma{extra})")
 
 
 # --------------------------------------------------------------------------
