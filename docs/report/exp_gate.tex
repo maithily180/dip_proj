@@ -14,7 +14,7 @@ what split-half agreement checks.
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{lcccc}
+\resizebox{\textwidth}{!}{\begin{tabular}{lcccc}
 \toprule
 dev set & dip depth & directional contrast & peak ratio & split-half agreement \\
 \midrule
@@ -23,7 +23,7 @@ synthetic (all) & \textbf{0.97} & 0.91 & 0.94 & 0.93 \\
 LPBlur & 0.79 & 0.64 & \textbf{0.80} & 0.60 \\
 CCPD-Blur (4 helpful of 150) & 0.58 & 0.47 & 0.69 & 0.45 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{ROC AUC of each gate signal for ``the restoration will help'' (text-aware estimator, dev data).}
 \label{tab:auc}
 \end{table}
@@ -58,7 +58,7 @@ over all trials \emph{rises}, e.g.\ from $+1.5$ to $+3.0$\,dB on plates with the
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{llcccccc}
+\resizebox{\textwidth}{!}{\begin{tabular}{llcccccc}
 \toprule
 class & estimator & accepted & harm avoided & helpful withheld & images harmed & \multicolumn{2}{c}{mean gain (dB)} \\
  & & & & & (no gate $\rightarrow$ gate) & no gate & gate \\
@@ -70,7 +70,7 @@ text & text-aware & 93\% & 100\% & 3\% & 4.1\% $\rightarrow$ 0.0\% & 1.74 & 2.12
 plate & baseline & 80\% & 96\% & 14\% & 7.0\% $\rightarrow$ 0.3\% & 2.34 & 3.06 \\
 plate & text-aware & 78\% & 96\% & 13\% & 11.6\% $\rightarrow$ 0.4\% & 1.54 & 3.01 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{The frozen gate on the held-out synthetic test split (2{,}560--3{,}840 trials per row).}
 \label{tab:gatetest}
 \end{table}

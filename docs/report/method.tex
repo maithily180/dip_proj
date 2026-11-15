@@ -60,10 +60,12 @@ The proposal planned a text-contrast pre-processing step (local contrast normali
 edge enhancement) in front of the estimator. We implemented and evaluated nine such operators
 (CLAHE, unsharp masking, Gaussian high-pass, Laplacian, difference of Gaussians, gradient
 magnitude, local contrast normalisation, homomorphic filtering, and the proposed
-LCN+Laplacian combination) on the identical sweep (Section~\ref{sec:preproc}). None of them
-helped, and the edge-emphasising ones hurt under noise: they raise exactly the high-frequency
-band where noise, JPEG residue and resampling artefacts live and where the blur nulls are
-weakest.
+LCN+Laplacian combination) on the identical sweep (Section~\ref{sec:preproc}). Contrast
+normalisation was neutral, the derivative operators --- including the proposed combination ---
+collapsed under noise because they raise exactly the high-frequency band where noise, JPEG residue
+and resampling artefacts live and where the blur nulls are weakest, and only a mild Gaussian
+high-pass helped on synthetic data. On real plates none of the contrast operators moved OCR
+accuracy (Section~\ref{sec:design}).
 
 The analysis pointed the other way. Plates and printed text in real photographs are small,
 resampled and compressed regions, so the upper part of their spectrum carries little genuine
@@ -92,9 +94,8 @@ unchanged''). It combines three tests, each computed from quantities the estimat
         (0--4) that reproduce the angle (within $10^\circ$) and length (within
         $\max(2\,\text{px}, 15\%)$) is counted.
 \end{itemize}
-Thresholds are calibrated on development data so as to keep as many helpful restorations as
-possible while letting harmful ones through in at most 5\% of the images of every
-development set (Section~\ref{sec:gateexp}).
+A threshold of 0 switches a test off. The thresholds are calibrated on development data
+(Section~\ref{sec:gateexp}); the resulting gate uses dip depth and split-half agreement.
 
 \subsection{Non-blind restoration}
 Richardson--Lucy (RL) is the primary restorer. Real images are not periodic and content outside

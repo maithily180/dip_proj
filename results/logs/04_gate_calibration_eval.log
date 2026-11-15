@@ -1,0 +1,71 @@
+
+== How often does restoring with the estimate help (dev)? ==
+  synthetic baseline   n= 3840  helps  91.1%  hurts   6.7%
+  synthetic text_aware n= 3840  helps  87.5%  hurts  10.8%
+  lpblur    baseline   n=  147  helps  37.4%  hurts  24.5%
+  lpblur    text_aware n=  147  helps  66.0%  hurts  12.9%
+  ccpd      baseline   n=  150  helps   2.0%  hurts  85.3%
+  ccpd      text_aware n=  150  helps   2.7%  hurts  86.7%
+
+== Ranking power of each gate signal: ROC AUC for 'restoration helps' (dev, text-aware) ==
+              set  confidence  angular_z  peak_ratio  agreement
+        synthetic       0.966      0.911       0.940      0.932
+synthetic/natural       0.956      0.896       0.935      0.924
+   synthetic/text       0.887      0.850       0.820      0.739
+  synthetic/plate       0.998      0.928       0.993      0.968
+           lpblur       0.788      0.638       0.802      0.596
+             ccpd       0.582      0.467       0.687      0.445
+
+== Calibrated gate (best mean net share over the dev sets) ==
+  GateConfig(min_confidence=4.4, min_angular_z=0.0, min_peak_ratio=0.0, min_agreement=2)
+  frozen DEFAULT_GATE: GateConfig(min_confidence=4.4, min_angular_z=0.0, min_peak_ratio=0.0, min_agreement=2)  ->  MATCH
+  strict alternative (harm <= 5% of images on every dev set): GateConfig(min_confidence=4.2, min_angular_z=4.0, min_peak_ratio=0.0, min_agreement=3)  ->  MATCH
+
+== Dev operating points (text-aware) ==
+  no gate      {'synthetic': {'accept': 1.0, 'kept_good': 1.0, 'harmed': 0.108, 'net_share': 0.329}, 'lpblur': {'accept': 1.0, 'kept_good': 1.0, 'harmed': 0.129, 'net_share': 0.681}, 'ccpd': {'accept': 1.0, 'kept_good': 1.0, 'harmed': 0.867, 'net_share': -0.98}}
+  frozen gate  {'synthetic': {'accept': 0.79, 'kept_good': 0.893, 'harmed': 0.0, 'net_share': 0.641}, 'lpblur': {'accept': 0.388, 'kept_good': 0.515, 'harmed': 0.0, 'net_share': 0.492}, 'ccpd': {'accept': 0.2, 'kept_good': 0.0, 'harmed': 0.16, 'net_share': -0.152}}
+  strict       {'synthetic': {'accept': 0.709, 'kept_good': 0.803, 'harmed': 0.0, 'net_share': 0.595}, 'lpblur': {'accept': 0.224, 'kept_good': 0.289, 'harmed': 0.0, 'net_share': 0.255}, 'ccpd': {'accept': 0.06, 'kept_good': 0.25, 'harmed': 0.047, 'net_share': -0.03}}
+
+== Gate behaviour on dev data ==
+      set    variant    gate  accept  kept_good  harmed  harm_avoided  good_withheld  mean_gain  net_share  correct_restore  harmful_restore  missed_restore  avoided_harm
+synthetic   baseline no gate   1.000      1.000   0.067         0.000          0.000      1.663      0.566             3497              342               1             0
+synthetic   baseline    gate   0.826      0.894   0.000         1.000          0.106      2.226      0.757             3127               46             371           296
+synthetic   baseline  strict   0.714      0.776   0.000         1.000          0.224      2.019      0.687             2716               24             782           318
+synthetic text_aware no gate   1.000      1.000   0.108         0.000          0.000      1.115      0.329             3361              479               0             0
+synthetic text_aware    gate   0.790      0.893   0.000         1.000          0.107      2.173      0.641             3001               32             360           447
+synthetic text_aware  strict   0.709      0.803   0.000         1.000          0.197      2.016      0.595             2698               23             663           456
+   lpblur   baseline no gate   1.000      1.000   0.245         0.000          0.000      0.046      0.187               55               92               0             0
+   lpblur   baseline    gate   0.109      0.164   0.020         0.917          0.836      0.025      0.100                9                7              46            85
+   lpblur   baseline  strict   0.034      0.055   0.000         1.000          0.945      0.012      0.050                3                2              52            90
+   lpblur text_aware no gate   1.000      1.000   0.129         0.000          0.000      0.281      0.681               97               50               0             0
+   lpblur text_aware    gate   0.388      0.515   0.000         1.000          0.485      0.203      0.492               50                7              47            43
+   lpblur text_aware  strict   0.224      0.289   0.000         1.000          0.711      0.105      0.255               28                5              69            45
+     ccpd   baseline no gate   1.000      1.000   0.853         0.000          0.000     -0.512     -0.983                3              147               0             0
+     ccpd   baseline    gate   0.267      0.333   0.187         0.781          0.667     -0.086     -0.164                1               39               2           108
+     ccpd   baseline  strict   0.073      0.333   0.053         0.938          0.667     -0.020     -0.038                1               10               2           137
+     ccpd text_aware no gate   1.000      1.000   0.867         0.000          0.000     -0.553     -0.980                4              146               0             0
+     ccpd text_aware    gate   0.200      0.000   0.160         0.815          1.000     -0.086     -0.152                0               30               4           116
+     ccpd text_aware  strict   0.060      0.250   0.047         0.946          0.750     -0.017     -0.030                1                8               3           138
+
+== Held-out synthetic test split (frozen gate) ==
+    cls    variant    gate    n  accept  kept_good  harmed  harm_avoided  good_withheld  mean_gain  net_share  correct_restore  harmful_restore  missed_restore  avoided_harm
+natural       gray no gate 2560   1.000      1.000   0.148         0.000          0.000      0.235      0.095             2046              514               0             0
+natural       gray    gate 2560   0.647      0.783   0.000         0.997          0.217      1.252      0.505             1602               54             444           460
+natural       gray  strict 2560   0.564      0.690   0.000         1.000          0.310      1.150      0.464             1411               34             635           480
+natural text_aware no gate 2560   1.000      1.000   0.200         0.000          0.000     -0.311     -0.105             1939              621               0             0
+natural text_aware    gate 2560   0.600      0.772   0.000         1.000          0.228      1.201      0.407             1496               41             443           580
+natural text_aware  strict 2560   0.533      0.687   0.000         1.000          0.313      1.110      0.376             1333               32             606           589
+  plate       gray no gate 3840   0.998      0.999   0.070         0.018          0.001      2.340      0.555             3565              268               2             5
+  plate       gray    gate 3840   0.802      0.861   0.003         0.960          0.139      3.064      0.727             3070               11             497           262
+  plate       gray  strict 3840   0.647      0.696   0.001         0.993          0.304      2.702      0.641             2483                2            1084           271
+  plate text_aware no gate 3840   1.000      1.000   0.116         0.000          0.000      1.543      0.318             3395              445               0             0
+  plate text_aware    gate 3840   0.778      0.875   0.004         0.962          0.125      3.005      0.619             2972               17             423           428
+  plate text_aware  strict 3840   0.657      0.742   0.001         0.996          0.258      2.714      0.559             2520                2             875           443
+   text       gray no gate 2560   0.999      0.999   0.007         0.000          0.001      2.140      0.946             2504               54               2             0
+   text       gray    gate 2560   0.970      0.979   0.000         1.000          0.021      2.191      0.969             2453               29              53            25
+   text       gray  strict 2560   0.867      0.876   0.000         1.000          0.124      2.007      0.888             2196               24             310            30
+   text text_aware no gate 2560   1.000      1.000   0.041         0.000          0.000      1.744      0.691             2423              137               0             0
+   text text_aware    gate 2560   0.930      0.972   0.000         1.000          0.028      2.120      0.840             2355               26              68           111
+   text text_aware  strict 2560   0.857      0.896   0.000         1.000          0.104      1.995      0.790             2172               23             251           114
+
+wrote results/csv/04_*.csv, results/gate_calibration.json, results/figures/04_*.png

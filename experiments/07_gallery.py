@@ -39,7 +39,7 @@ def worked_example(plt):
     restored = rl(blurred, est.psf(), 100, stop=1.0)
 
     fig = plt.figure(figsize=(13, 6.3))
-    gs = fig.add_gridspec(2, 4, height_ratios=[1, 1.15], hspace=0.42, wspace=0.28)
+    gs = fig.add_gridspec(2, 4, height_ratios=[1, 1.15], hspace=0.42, wspace=0.42)
     ax = fig.add_subplot(gs[0, 0]); ax.imshow(sharp, cmap="gray", vmin=0, vmax=1)
     ax.set_title("sharp plate (unknown to the method)")
     ax = fig.add_subplot(gs[0, 1]); ax.imshow(blurred, cmap="gray", vmin=0, vmax=1)
@@ -61,38 +61,49 @@ def worked_example(plt):
 
     ax = fig.add_subplot(gs[1, 1:3])
     lo = int(np.ceil(est.config.min_length))
-    im = ax.imshow(est.profiles[:, lo:].T, aspect="auto", cmap="RdBu", origin="lower",
+    v = float(np.percentile(np.abs(est.profiles[:, lo + 2 :]), 99.5))
+    im = ax.imshow(est.profiles[:, lo:].T, aspect="auto", cmap="RdBu", origin="lower", vmin=-v, vmax=v,
                    extent=[0, 180, lo, est.profiles.shape[1]])
     ax.plot(est.angle, est.length, "o", mfc="none", mec="k", ms=14, mew=1.6)
     ax.set_xlabel("projection direction (deg)"); ax.set_ylabel("cepstral lag (px)")
     ax.set_title(f"Radon-cepstrum map: deepest dip = (angle, length)\n"
                  f"confidence {est.confidence:.1f} sigma, directional {est.angular_z:.1f} sigma")
-    fig.colorbar(im, ax=ax, fraction=0.03)
+    cb = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.015)
+    cb.set_ticks([]); cb.set_label("cepstrum (red < 0)", fontsize=8)
 
     ax = fig.add_subplot(gs[1, 3])
     p = est.profile
     ax.plot(np.arange(len(p)), p, color="#2a6fb0")
     ax.axvline(est.length, color="#c0392b", lw=1, ls="--")
     ax.axvline(length, color="k", lw=0.8, ls=":")
-    ax.set_xlim(0, len(p) - 1); ax.set_xlabel("lag (px)")
+    ax.set_xlim(lo, len(p) - 1); ax.set_xlabel("lag (px)")
+    ax.set_ylim(p[lo:].min() * 1.3, max(p[lo + 2 :].max() * 1.5, 1e-3))
     ax.set_title("profile along the detected direction\n(red: estimate, dotted: truth)")
     fig.savefig(FIG / "07_worked_example.png"); plt.close(fig)
 
 
 def _pick(df: pd.DataFrame, k: int = 2) -> list[tuple[str, pd.Series]]:
-    d = df.acc_text_aware - df.acc_blurred
-    out = []
-    acc = df[df.text_aware_accept]
-    good = acc.assign(d=d).sort_values(["d", "acc_text_aware"], ascending=False)
-    out += [("success", r) for _, r in good.head(k).iterrows()]
-    mid = acc.assign(d=d)
-    mid = mid[(mid.d > 0) & (mid.d < 0.5)]
-    out += [("typical", r) for _, r in mid.head(k).iterrows()]
-    ref = df[~df.text_aware_accept].assign(d=d).sort_values("d")
-    out += [("refused (would hurt)", r) for _, r in ref.head(1).iterrows()]
-    out += [("refused (would help)", r) for _, r in ref.tail(1).iterrows() if r.d > 0]
-    bad = acc.assign(d=d).sort_values("d")
-    out += [("failure", r) for _, r in bad.head(1).iterrows() if r.d < 0]
+    """Gallery rows chosen by rule (each image at most once): the largest
+    accepted gains, typical accepted gains, the worst and the best refusal,
+    and the worst accepted restoration."""
+    df = df.assign(d=df.acc_text_aware - df.acc_blurred)
+    used: set[str] = set()
+    out: list[tuple[str, pd.Series]] = []
+
+    def take(tag, rows, n, cond=lambda r: True):
+        for _, r in rows.iterrows():
+            if n == 0:
+                break
+            if r["name"] in used or not cond(r):
+                continue
+            used.add(r["name"]); out.append((tag, r)); n -= 1
+
+    acc, ref = df[df.text_aware_accept], df[~df.text_aware_accept]
+    take("success", acc.sort_values(["d", "acc_text_aware"], ascending=False), k, lambda r: r.d > 0)
+    take("typical", acc[(acc.d > 0) & (acc.d < 0.5)], k)
+    take("refused (would hurt)", ref.sort_values("d"), 1, lambda r: r.d < 0)
+    take("refused (would help)", ref.sort_values("d", ascending=False), 1, lambda r: r.d > 0)
+    take("failure", acc.sort_values("d"), 1, lambda r: r.d < 0)
     return out
 
 

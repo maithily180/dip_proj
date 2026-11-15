@@ -111,7 +111,7 @@ def main():
     axes[0].set_ylabel("success (%)"); axes[2].legend(frameon=False, fontsize=7.5, loc="lower left")
     fig.suptitle("Pre-processing variants under increasing noise", y=1.02)
     fig.savefig(FIG / "03_preprocess_noise.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '03_preprocess.csv.gz'} and figures 03_*.png")
+    print(f"\nwrote results/csv/03_preprocess.csv.gz and figures 03_*.png")
 
 
 if __name__ == "__main__":

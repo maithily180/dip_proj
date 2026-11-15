@@ -1,0 +1,33 @@
+
+Mean PSNR gain over the blurred input (dB), true PSF
+param  5.0    10.0   20.0   30.0   50.0   100.0  200.0
+sigma                                                 
+0.00    1.48   2.24   3.26   3.95   4.86   6.07   7.17
+0.01    1.39   2.01   2.68   2.98   3.14   2.83   1.98
+0.02    1.20   1.60   1.78   1.64   1.11  -0.15  -1.75
+0.04    0.81   0.81   0.25  -0.44  -1.64  -3.52  -5.26
+
+RL with discrepancy-principle stopping, by tau
+param  1.00  1.05  1.10  1.20
+sigma                        
+0.00   4.79  4.68  4.57  4.36
+0.01   2.33  2.16  2.01  1.71
+0.02   1.46  1.26  1.09  0.80
+0.04   0.65  0.44  0.31  0.14
+
+Wiener, by NSR
+param  0.001  0.003  0.010  0.030  0.100
+sigma                                   
+0.00    5.42   5.61   4.59   2.85   0.04
+0.01   -0.66   1.43   2.73   2.37   0.07
+0.02   -4.66  -2.11   0.50   1.54   0.15
+0.04   -8.17  -5.83  -2.51   0.05   0.30
+
+Boundary handling at 30 iterations (mean PSNR, dB)
+  blurred input            full 19.36   interior 19.33
+  periodic RL (skimage)    full 14.24   interior 18.93
+  unknown-boundary RL      full 21.39   interior 21.54
+
+RL(30) with the true PSF improves PSNR in 83.7% of 1440 trials (SSIM improves in 77.4%)
+
+wrote results/csv/01_true_psf.csv and results/figures/01_true_psf.png

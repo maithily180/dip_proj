@@ -20,7 +20,38 @@ blurred image ─► log-spectrum ─► Radon transform ─► 1-D FFT per proj
           refuse → input unchanged        accept → Richardson–Lucy (unknown-boundary) with line PSF(θ, L)
 ```
 
-<!-- RESULTS -->
+## Results at a glance
+
+All numbers are from held-out test images; every design choice was made on separate development
+splits. Full tables: [`docs/report/report.pdf`](docs/report/report.pdf) and `results/csv/`.
+
+**Real motion-blurred plates (LPBlur, 397 test pairs), OCR character accuracy**
+
+| system | accuracy | plates read exactly | plates made worse | PSNR / SSIM |
+|---|---|---|---|---|
+| blurred input | 0.176 | 3.3% | – | 21.62 / 0.642 |
+| classical baseline (Radon + cepstrum + RL) | 0.241 | 7.1% | 19.1% | 20.09 / 0.581 |
+| **text-aware** (multi-band estimator) | **0.497** | **25.4%** | 9.8% | 21.08 / 0.657 |
+| **text-aware + gate** | 0.407 | 19.9% | **0.8%** | **21.95 / 0.682** |
+
+**CCPD-Blur (400 test images, blur mostly *not* linear motion)**: leaving the images alone gives
+0.759; deblurring every image with a line kernel drops it to 0.19–0.24. The gate refuses 82% of
+the images and recovers 0.684 (strict operating point: 0.726). It does not beat doing nothing on
+this set.
+
+**Synthetic sweep (8 angles × 5 lengths × 4 noise levels)**: PSF estimation success in a plate-sized
+window is 98.9% for printed text, 89.4% for plates, 80.7% for natural texture (93.0% at full frame).
+The difficulty is region size, noise and short blur, not text content. The proposal's edge-enhanced
+pre-processing (LCN + Laplacian) lowers success to 46.5%. On held-out trials the gate refuses 96–100%
+of harmful restorations.
+
+**Köhler camera shake**: real hand shake is curved; even the best straight-line fit to the recorded
+kernel loses 1 dB (24.4 → 23.4 dB, recorded kernel 29.2 dB), which marks the limit of the
+one-straight-line model.
+
+![Held-out real plates](results/figures/05_real_ocr.png)
+![LPBlur gallery](results/figures/07_gallery_lpblur.png)
+
 
 ## Repository layout
 

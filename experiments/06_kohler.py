@@ -25,6 +25,7 @@ Outputs: results/csv/06_kohler.csv, results/figures/06_*.png
 from __future__ import annotations
 
 import re
+import sys
 from functools import lru_cache
 
 import numpy as np
@@ -35,7 +36,7 @@ from common import CSV, FIG, pmap, setup_matplotlib
 from textdeblur.data import DATA, imread, to_gray
 from textdeblur.deconv import richardson_lucy
 from textdeblur.estimate import BASELINE, TEXT_AWARE, estimate_blur
-from textdeblur.gate import DEFAULT_GATE, decide
+from textdeblur.gate import DEFAULT_GATE, consistency, decide
 from textdeblur.metrics import angle_error, kernel_similarity
 from textdeblur.psf import motion_psf
 
@@ -136,9 +137,10 @@ def run(job):
     restored = {}
     for name, cfg in (("baseline", BASELINE), ("text_aware", TEXT_AWARE)):
         est = estimate_blur(blurred, cfg)
+        agree = consistency(blurred, est, cfg)
         row.update({f"{name}_angle": est.angle, f"{name}_length": est.length,
-                    f"{name}_conf": est.confidence, f"{name}_ratio": est.peak_ratio,
-                    f"{name}_accept": decide(est, DEFAULT_GATE).accept})
+                    f"{name}_conf": est.confidence, f"{name}_ratio": est.peak_ratio, f"{name}_agree": agree,
+                    f"{name}_accept": decide(est, DEFAULT_GATE, agree).accept})
         if kref is not None:
             row[f"{name}_ksim"] = kernel_similarity(est.psf(), kref)
             row[f"{name}_angle_err"] = angle_error(est.angle, row["ref_angle"])
@@ -156,9 +158,12 @@ def run(job):
 
 
 def main():
-    jobs = [(i, k) for i in range(1, 5) for k in range(1, 13)]
-    df = pd.DataFrame(pmap(run, jobs, workers=8, chunksize=1, desc="Köhler"))
-    df.to_csv(CSV / "06_kohler.csv", index=False)
+    if "--plot-only" in sys.argv:                  # redraw from a previous run
+        df = pd.read_csv(CSV / "06_kohler.csv")
+    else:
+        jobs = [(i, k) for i in range(1, 5) for k in range(1, 13)]
+        df = pd.DataFrame(pmap(run, jobs, workers=8, chunksize=1, desc="Köhler"))
+        df.to_csv(CSV / "06_kohler.csv", index=False)
     pd.set_option("display.width", 220)
 
     print("\n== Reference kernels (one per trajectory) ==")
@@ -194,8 +199,8 @@ def main():
         r = df[(df.kernel == kk)].iloc[0]
         for row_i, (img, title) in enumerate([
             (kref, f"#{kk}  lin {r.get('ref_linearity', np.nan):.2f}"),
-            (motion_psf(r.text_aware_length, r.text_aware_angle, size=KSIZE) if r.text_aware_length < KSIZE - 4 else None,
-             f"est. sim {r.get('text_aware_ksim', np.nan):.2f}"),
+            (motion_psf(min(r.text_aware_length, KSIZE - 4), r.text_aware_angle, size=KSIZE),
+             f"L={r.text_aware_length:.0f}, sim {r.get('text_aware_ksim', np.nan):.2f}"),
         ]):
             ax = axes[row_i, kk - 1]
             if img is not None:
@@ -210,13 +215,14 @@ def main():
         fig, ax = plt.subplots(figsize=(6.4, 4))
         ax.scatter(g.ref_linearity, g.psnr_text_aware - g.psnr_blurred, c="#2a6fb0", s=26, label="text-aware estimate")
         ax.scatter(g.ref_linearity, g.psnr_ref_kernel - g.psnr_blurred, c="#999999", s=14, marker="^", label="reference kernel (ceiling)")
+        ax.scatter(g.ref_linearity, g.psnr_line_fit - g.psnr_blurred, c="#dd8452", s=14, marker="s", label="best line fit to it")
         ax.axhline(0, color="k", lw=0.7)
         ax.set_xlabel("linearity of the recorded kernel (1 = straight line)")
         ax.set_ylabel("PSNR change vs. blurred input (dB)")
-        ax.set_title("A linear PSF helps only where the shake was close to linear")
+        ax.set_title("Real camera shake: the recorded kernel helps, a straight line does not")
         ax.legend(frameon=False, fontsize=8)
         fig.savefig(FIG / "06_kohler_gain_vs_linearity.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '06_kohler.csv'}")
+    print(f"\nwrote results/csv/06_kohler.csv")
 
 
 if __name__ == "__main__":

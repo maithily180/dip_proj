@@ -47,6 +47,8 @@ def main(argv: list[str]) -> int:
         print(f"=== {script} finished in {time.time() - t0:.0f} s (exit {proc.returncode})", flush=True)
         if proc.returncode != 0:
             return proc.returncode
+    # keep machine-specific absolute paths out of the committed logs
+    subprocess.run([sys.executable, str(HERE.parent / "scripts" / "scrub_paths.py")], check=False)
     return 0
 
 

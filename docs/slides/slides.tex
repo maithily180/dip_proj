@@ -42,37 +42,196 @@
 % ------------------------------------------------------------------
 \begin{frame}{How the blur is read off the spectrum}
 \centering
-\includegraphics[width=0.93\textwidth]{07_worked_example.png}
+\includegraphics[width=\textwidth,height=0.68\textheight,keepaspectratio]{07_worked_example.png}\par
 \vspace{-2pt}
 {\footnotesize Line PSF $\Rightarrow$ sinc nulls $\perp$ motion, spaced $1/L$. Radon projections of the
-log-spectrum $\rightarrow$ 1-D FFT = radial cepstrum slices. Deepest negative dip $=(\theta, L)$, searched jointly.}
+log-spectrum $\rightarrow$ 1-D FFT = radial cepstrum slices. Deepest negative dip $=(\theta, L)$.}
 \end{frame}
 
 % ------------------------------------------------------------------
 \begin{frame}{Pipeline}
+\small
 \begin{enumerate}
   \item Windowed log-spectrum on a square isotropic grid ($\ge 256^2$).
-  \item \textbf{Joint} Radon--cepstrum search over (direction, lag), sub-degree / sub-pixel refinement.
-        \\{\small (textbook rule: angle first by Radon variance, then length --- fooled by strokes; kept as reference)}
+  \item \textbf{Radon angle} (direction of maximum projection variance), \textbf{cepstral length}
+        (deepest dip along it), joint refinement within $\pm3^\circ$, sub-degree / sub-pixel.
   \item \textbf{Text-aware stage}: repeat at band limits $\{1, 0.5, 0.3\}$ Nyquist, keep the most directional dip.
-  \item \textbf{Gate}: dip depth $\ge 3\sigma$ \emph{and} $\ge 2$ of 4 image halves reproduce the estimate
+  \item \textbf{Gate}: dip depth $\ge 4.4\sigma$ \emph{and} $\ge 2$ of 4 image halves reproduce the estimate
         $\Rightarrow$ otherwise refuse, return the input unchanged.
   \item Unknown-boundary Richardson--Lucy (Wiener as comparison).
 \end{enumerate}
 \vspace{4pt}
-{\small OCR (RapidOCR, recognition only, rectified plate) is a measuring instrument, never part of the pipeline.}
+OCR (RapidOCR, recognition only, rectified plate) is a measuring instrument, never part of the pipeline.
+Every choice made on development splits; every number on held-out images.
 \end{frame}
 
 % ------------------------------------------------------------------
 \begin{frame}{O1 --- restoration with the true PSF}
 \centering
-\includegraphics[width=\textwidth]{01_true_psf.png}
+\includegraphics[width=\textwidth,height=0.58\textheight,keepaspectratio]{01_true_psf.png}
 \begin{itemize}\small
   \item Best RL iteration count depends on noise $\Rightarrow$ discrepancy-principle stopping.
   \item Periodic RL rings at the borders; unknown-boundary RL fixes it.
 \end{itemize}
 \end{frame}
 
-%RESULTS-SLIDES%
+% ------------------------------------------------------------------
+\begin{frame}{O2 --- where does the classical estimator fail?}
+\begin{columns}[T]
+\column{0.58\textwidth}
+\includegraphics[width=\textwidth]{02_success_by_class.png}
+\column{0.42\textwidth}
+\small
+8 angles $\times$ 5 lengths $\times$ 4 noise levels, held-out sources.
+\begin{itemize}
+  \item Text in a plate-sized window: \hl{98.9\%} --- the \emph{easiest} input.
+  \item Same Kodak images: 93.0\% full frame $\rightarrow$ 80.7\% cropped.
+  \item Plates 89.4\%; failures at $L{=}5$ (58\%) and $\sigma{=}0.04$ (76\%).
+\end{itemize}
+\textbf{It is a small-region gap, not a text gap.}
+\end{columns}
+\end{frame}
+
+\begin{frame}{The failure pocket: short blur under noise, in small windows}
+\centering
+\includegraphics[width=\textwidth]{02_heatmap_length_noise.png}
+\vspace{4pt}
+{\small A correction to phase 0: the Radon-variance angle beats an unrestricted (angle $\times$ lag)
+search (mean angle error $1.7^\circ$ vs.\ $7.1^\circ$ on plates). Final estimator = Radon angle + $\pm3^\circ$ joint
+refinement --- the proposal's pipeline as written.}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{O3 --- does pre-processing strengthen the blur signature?}
+\centering
+\includegraphics[width=\textwidth,height=0.58\textheight,keepaspectratio]{03_preprocess_success.png}
+\begin{itemize}\small
+  \item Proposed LCN + Laplacian: \hl{89.7\% $\rightarrow$ 46.5\%}. Derivatives boost the noise band where the nulls are weakest.
+  \item Mild Gaussian high-pass / DoG: $+2.5$ points (synthetic) --- reported, not adopted (not in the real-plate dev comparison).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{What actually helps real plates: throw away the upper band}
+\begin{columns}[T]
+\column{0.55\textwidth}
+\small
+\begin{tabular}{lcc}
+\toprule
+dev data & synthetic & LPBlur OCR \\
+\midrule
+blurred & -- & 0.234 \\
+full band (baseline) & 90.7\% & 0.280 \\
+CLAHE / LCN & 88--91\% & 0.28--0.29 \\
+LCN + Laplacian & 46.4\% & 0.239 \\
+band limit 0.3 & 55.4\% & \textbf{0.637} \\
+\textbf{multi-band} $\{1, .5, .3\}$ & 87.6\% & 0.515 \\
+\bottomrule
+\end{tabular}
+\column{0.45\textwidth}
+\small
+\begin{itemize}
+  \item Plate crops are small, upsampled, JPEG'd: above some radius the spectrum is noise + residue.
+  \item A long blur's nulls sit at low frequency ($1/L$ apart).
+  \item But a 0.3 limit loses short blurs (first null at $2/L$ Nyquist).
+  \item $\Rightarrow$ search 3 bands, keep the most \emph{directional} dip.
+\end{itemize}
+\end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{O4 --- the confidence gate}
+\begin{columns}[T]
+\column{0.5\textwidth}
+\small
+\textbf{Accept} $\iff$ dip depth $\ge 4.4\sigma$ \textbf{and} $\ge 2$ of 4 image halves reproduce the estimate.
+\begin{itemize}
+  \item Uniform blur is the same everywhere --- defocus / non-uniform shake are not.
+  \item Calibrated on dev sets (net gain let through / total stakes).
+\end{itemize}
+\vspace{4pt}
+\textbf{Held-out synthetic test}
+\begin{itemize}
+  \item harm avoided: \hl{96--100\%}
+  \item helpful withheld: 2--23\%
+  \item plates: mean gain $+1.5 \rightarrow +3.0$\,dB
+\end{itemize}
+\column{0.5\textwidth}
+\includegraphics[width=\textwidth]{04_gate_roc.png}
+\end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{O5 --- real blurred plates (held out)}
+\centering
+\includegraphics[height=0.52\textheight]{05_real_ocr.png}
+\begin{columns}[T]
+\column{0.5\textwidth}\small
+\textbf{LPBlur} (real motion, $n{=}397$): 0.18 $\rightarrow$ baseline 0.24 $\rightarrow$ \hl{text-aware 0.50}; with gate 0.41 and only \hl{0.8\%} of plates worse; best PSNR/SSIM.
+\column{0.5\textwidth}\small
+\textbf{CCPD-Blur} (mostly non-linear, $n{=}400$): restoring all 0.76 $\rightarrow$ 0.19. Gate refuses 82\% $\rightarrow$ 0.68 (strict: 0.73). Does not beat doing nothing.
+\end{columns}
+\end{frame}
+
+\begin{frame}{Gallery --- LPBlur test plates (rows chosen by rule)}
+\centering
+\includegraphics[height=0.84\textheight]{07_gallery_lpblur.png}
+\end{frame}
+
+\begin{frame}{Gallery --- CCPD-Blur: knowing when not to act}
+\centering
+\includegraphics[height=0.84\textheight]{07_gallery_ccpd.png}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{O1 --- Köhler camera shake: the limits of a line}
+\begin{columns}[T]
+\column{0.55\textwidth}
+\includegraphics[width=\textwidth]{06_kohler_gain_vs_linearity.png}
+\column{0.45\textwidth}\small
+\begin{tabular}{lc}
+\toprule
+restoration & PSNR \\
+\midrule
+blurred & 24.4 \\
+recorded kernel & \textbf{29.2} \\
+best line fit & 23.4 \\
+text-aware estimate & 20.4 \\
+\quad + gate & 24.1 \\
+\bottomrule
+\end{tabular}
+\vspace{4pt}
+\begin{itemize}
+  \item Real hand shake is curved: even the best line loses 1\,dB.
+  \item The gate does not catch this --- curved shake is still consistent across halves.
+\end{itemize}
+\end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Takeaways}
+\begin{enumerate}
+  \item Plates are hard for spectral PSF estimation because they are \textbf{small}, not because they are text.
+  \item \textbf{Edge enhancement hurts; band limiting helps.} Multi-band search: 2$\times$ the baseline's OCR accuracy on real motion-blurred plates.
+  \item The \textbf{gate} turns silent damage into an explicit refusal: 0.8\% of LPBlur plates harmed; most of CCPD-Blur correctly left alone.
+  \item Limits: one straight uniform kernel. Curved shake (Köhler) and defocus need a richer model --- and a gate that tests the model itself.
+\end{enumerate}
+\vspace{6pt}
+{\small Code, tests (66), demo (\texttt{streamlit run demo/app.py}) and \texttt{experiments/run\_all.py} regenerate every number.}
+\end{frame}
+
+\begin{frame}{Demo}
+\begin{columns}[T]
+\column{0.5\textwidth}\small
+\begin{itemize}
+  \item \textbf{Automatic}: estimate $\rightarrow$ gate $\rightarrow$ RL, or an explicit refusal with its reason.
+  \item \textbf{Semi-blind}: set angle and length by hand when the gate refuses.
+  \item \textbf{Simulate}: blur a sharp image with a known kernel; true vs.\ estimated PSF.
+  \item Frequency-domain evidence (log-spectrum, Radon--cepstrum map, profile) shown for every image.
+\end{itemize}
+\column{0.5\textwidth}
+\includegraphics[width=\textwidth]{07_worked_example.png}
+\end{columns}
+\end{frame}
+
 
 \end{document}

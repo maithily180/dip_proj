@@ -17,7 +17,7 @@ joint refinement.}
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{lcccc}
+\resizebox{\textwidth}{!}{\begin{tabular}{lcccc}
 \toprule
  & natural, full frame & natural, crop & printed text, crop & plate, crop \\
 \midrule
@@ -32,7 +32,7 @@ PSNR blurred $\rightarrow$ restored (estimated PSF) & 24.6 $\rightarrow$ 25.3 & 
 \quad restored with the true PSF (ceiling) & 26.0 & 24.7 & 17.8 & 23.6 \\
 \quad restorations worse than the input & 6.3\% & 14.8\% & 0.7\% & 7.1\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{Success rate (\%) on the test split and restoration quality (RL with discrepancy stopping).}
 \label{tab:sweep}
 \end{table}

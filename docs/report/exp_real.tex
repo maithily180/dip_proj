@@ -10,7 +10,7 @@ so it is not the bottleneck. 95\% confidence intervals are bootstrap intervals o
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{l|ccccc|cccc}
+\resizebox{\textwidth}{!}{\begin{tabular}{l|ccccc|cccc}
 \toprule
  & \multicolumn{5}{c|}{LPBlur ($n=397$)} & \multicolumn{4}{c}{CCPD-Blur ($n=400$)} \\
 system & char.\ acc. & exact & worse & PSNR & SSIM & char.\ acc. & exact & worse & accepted \\
@@ -23,7 +23,7 @@ text-aware + gate & 0.407 & 19.9\% & \textbf{0.8\%} & \textbf{21.95} & \textbf{0
 text-aware + strict gate & 0.308 & 13.6\% & 0.3\% & 21.85 & 0.666 & 0.726 & 40.2\% & 5.5\% & 7\% \\
 text-aware, Wiener & \textbf{0.497} & \textbf{26.7\%} & 9.3\% & 21.37 & 0.658 & 0.215 & 5.2\% & 85.2\% & 100\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{Held-out real plates. \emph{char.\ acc.}: OCR character accuracy (95\% CIs: LPBlur
 blurred 0.149--0.203, text-aware 0.459--0.536, text-aware + gate 0.366--0.447; CCPD blurred
 0.730--0.786, text-aware + gate 0.652--0.718). \emph{exact}: whole plate read correctly.

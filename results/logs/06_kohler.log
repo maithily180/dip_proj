@@ -1,0 +1,45 @@
+
+== Reference kernels (one per trajectory) ==
+        ref_angle  ref_length  ref_linearity  line_ksim
+kernel                                                 
+1           42.53       23.16           0.84       0.55
+2          138.54       12.50           0.50       0.45
+3           86.58        6.45           0.68       0.64
+4          112.47       11.12           0.67       0.55
+5           92.95       25.29           0.66       0.31
+6           58.60       17.78           0.53       0.32
+7           81.14       22.43           0.68       0.39
+8           87.94      138.12           0.18       0.15
+9          141.95      102.46           0.88       0.28
+10          67.58      122.12           0.20       0.22
+11          81.35       58.23           0.35       0.39
+12         134.37       30.12           0.69       0.23
+
+== Kernel similarity of the estimated line kernel to the reference kernel ==
+      line_ksim  baseline_ksim  text_aware_ksim
+mean      0.373          0.353            0.339
+50%       0.352          0.344            0.319
+min       0.152          0.085            0.115
+max       0.638          0.653            0.652
+
+Near-linear trajectories (linearity >= 0.75): 2 of 12, 8 images
+  baseline   median angle error 47.7 deg, within 10 deg: 38%, kernel similarity 0.332 (line-fit ceiling 0.418)
+  text_aware median angle error 24.0 deg, within 10 deg: 50%, kernel similarity 0.370 (line-fit ceiling 0.418)
+
+== Benchmark PSNR (dB), 24 images with ground truth ==
+psnr_blurred       24.39
+psnr_baseline      20.44
+psnr_text_aware    20.42
+psnr_line_fit      23.42
+psnr_ref_kernel    29.24
+text-aware + gate: 24.08 dB  (accepted 62% of images)
+  baseline   worse than blurred input in 75% of images
+  text_aware worse than blurred input in 75% of images
+near-linear subset (4 images):
+psnr_blurred       22.72
+psnr_baseline      19.93
+psnr_text_aware    19.93
+psnr_line_fit      21.87
+psnr_ref_kernel    29.31
+
+wrote results/csv/06_kohler.csv

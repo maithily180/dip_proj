@@ -197,7 +197,7 @@ def main():
     axes[0].set_ylabel("images"); axes[0].legend(frameon=False, fontsize=8)
     fig.suptitle("What the gate lets through: accuracy change of the restoration it would produce", y=1.02)
     fig.savefig(FIG / "05_gate_real.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '05_summary.csv'} and figures 05_*.png")
+    print(f"\nwrote results/csv/05_summary.csv and figures 05_*.png")
 
 
 if __name__ == "__main__":

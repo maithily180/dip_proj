@@ -1,0 +1,73 @@
+== Synthetic dev split: estimation success (%) ==
+cls              natural  plate  text  mean
+variant                                    
+two_stage           79.7   90.1  98.8  89.5
+joint_search        75.1   85.3  96.2  85.5
+radon_window8       80.3   88.4  98.0  88.9
+gray                81.4   91.4  99.2  90.7
+clahe               78.9   87.0  97.4  87.8
+lcn                 82.0   93.1  98.9  91.4
+homomorphic         82.5   89.8  99.1  90.5
+text                31.7   64.4  43.1  46.4
+band_auto           66.2   81.1  91.9  79.7
+band0.7             74.7   85.9  95.0  85.2
+band0.5             64.9   79.0  81.3  75.1
+band0.3             42.7   62.1  61.5  55.4
+multiband           76.1   88.8  97.7  87.6
+multiband_joint     70.4   85.9  95.6  84.0
+
+== Synthetic dev split: success (%) by blur length ==
+length             5     9     13    19    27
+variant                                      
+two_stage        68.0  91.0  96.0  97.0  96.0
+joint_search     64.0  88.0  92.0  94.0  89.0
+radon_window8    68.0  90.0  94.0  96.0  96.0
+gray             72.0  93.0  96.0  97.0  96.0
+clahe            63.0  90.0  94.0  96.0  95.0
+lcn              76.0  93.0  95.0  96.0  97.0
+homomorphic      72.0  92.0  96.0  96.0  97.0
+text             48.0  53.0  48.0  44.0  40.0
+band_auto        35.0  80.0  91.0  96.0  97.0
+band0.7          45.0  92.0  96.0  97.0  97.0
+band0.5           4.0  84.0  95.0  97.0  97.0
+band0.3           0.0  13.0  75.0  93.0  96.0
+multiband        58.0  91.0  95.0  96.0  97.0
+multiband_joint  54.0  86.0  92.0  94.0  93.0
+
+== ccpd dev subset: OCR character accuracy, RL-30 with each variant's estimate ==
+                   n  before  after  improved_pct  worse_pct  median_length
+variant                                                                    
+two_stage        150   0.768  0.256         2.667     84.667         42.583
+joint_search     150   0.768  0.308         3.333     81.333         17.986
+radon_window8    150   0.768  0.240         2.667     88.000         40.050
+gray             150   0.768  0.256         2.000     85.333         41.982
+clahe            150   0.768  0.234         2.000     86.667         39.860
+lcn              150   0.768  0.339         3.333     78.667         16.028
+homomorphic      150   0.768  0.274         2.667     84.667         32.244
+text             150   0.768  0.584        10.667     50.000          7.867
+band_auto        150   0.768  0.171         2.667     91.333         56.005
+band0.7          150   0.768  0.164         2.667     91.333         56.017
+band0.5          150   0.768  0.137         1.333     94.667         58.955
+band0.3          150   0.768  0.098         0.667     94.000         62.987
+multiband        150   0.768  0.214         2.667     86.667         48.043
+multiband_joint  150   0.768  0.219         3.333     86.667         25.930
+
+== lpblur dev subset: OCR character accuracy, RL-30 with each variant's estimate ==
+                   n  before  after  improved_pct  worse_pct  median_length
+variant                                                                    
+two_stage        147   0.234  0.206        29.932     27.891         63.714
+joint_search     147   0.234  0.357        36.054     15.646         24.272
+radon_window8    147   0.234  0.397        47.619     16.327         43.271
+gray             147   0.234  0.280        37.415     24.490         51.362
+clahe            147   0.234  0.280        39.456     22.449         52.061
+lcn              147   0.234  0.289        36.054     21.769         50.145
+homomorphic      147   0.234  0.253        38.776     24.490         52.924
+text             147   0.234  0.239        35.374     19.728         47.929
+band_auto        147   0.234  0.332        40.136     21.088         53.896
+band0.7          147   0.234  0.286        37.415     24.490         56.049
+band0.5          147   0.234  0.463        53.741      9.524         47.960
+band0.3          147   0.234  0.637        77.551      1.361         41.150
+multiband        147   0.234  0.515        65.986     12.925         45.081
+multiband_joint  147   0.234  0.553        65.306      8.844         38.003
+
+wrote results/csv/00_design_dev_synthetic.csv and results/csv/00_design_dev_real.csv

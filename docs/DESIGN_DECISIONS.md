@@ -102,9 +102,9 @@ windowing.
   canvas.
 * **Iterations.** The best iteration count depends on noise (experiment 1). Synthetic sweeps use the
   discrepancy principle (stop when the residual reaches the estimated noise level). For real plates
-  the proposal's fixed 30 iterations was kept: on LPBlur dev, 60 iterations gained only +0.01 and on
-  CCPD-Blur more iterations were worse; TV regularisation gave +0.01.
-* **Wiener** is a comparison only (proposal); on LPBlur dev with NSR 0.03 it was on par with RL-30.
+  the proposal's fixed 30 iterations was kept: in a first development run (earlier estimator), 60
+  iterations gained only +0.01 on LPBlur and were worse on CCPD-Blur; TV regularisation gave +0.01.
+* **Wiener** is a comparison only (proposal); on the LPBlur test set with NSR 0.03 it ties RL-30.
 
 ## 5. Gate signals and thresholds
 
@@ -117,12 +117,32 @@ Candidate signals, all computed from the estimator's own output:
 * **split-half agreement** — how many of the four image halves reproduce the estimate (a uniform blur
   is the same everywhere).
 
-On real plates, dip depth alone ranked helpful restorations poorly (ROC AUC ≈ 0.6 on LPBlur dev),
-while directional contrast and agreement were clearly better. On CCPD-Blur, where ~80% of
-restorations *hurt* because the blur is mostly not uniform linear motion, only split-half agreement
-separated the few helpful cases. Thresholds are chosen by `04_gate_calibration.py`: keep as many
-helpful restorations as possible subject to harmful accepts in at most 5% of the images of every
-development set (synthetic, LPBlur, CCPD). They are frozen in `textdeblur.gate.DEFAULT_GATE`.
+ROC AUC for "the restoration will help" (development data, final estimator):
+
+| dev set | dip depth | directional contrast | peak ratio | split-half agreement |
+|---|---|---|---|---|
+| synthetic | 0.97 | 0.91 | 0.94 | 0.93 |
+| LPBlur | 0.79 | 0.64 | 0.80 | 0.60 |
+| CCPD-Blur (4 helpful of 150) | 0.58 | 0.47 | 0.69 | 0.45 |
+
+On CCPD-Blur ~87% of restorations *hurt* because the blur is mostly not uniform linear motion; no
+signal ranks the four helpful cases, so the useful question there is "is this a uniform line blur at
+all?", which split-half agreement asks.
+
+**Calibration rule.** The first rule tried was "keep the most helpful restorations subject to harming
+at most 5% of the images of every dev set". The CCPD constraint then forces a gate that keeps only a
+quarter of the helpful LPBlur restorations. A second attempt (share of the oracle gain) was unstable
+because CCPD has almost no positive gain to normalise by. The final rule scores each candidate on each
+dev set by its **net share** = Σ gain of accepted cases / Σ |gain| of all cases (in [−1, 1]; refusing
+everything scores 0) and takes the best mean over the three sets. Result, frozen in
+`textdeblur.gate.DEFAULT_GATE`:
+
+    accept  ⇔  dip depth ≥ 4.4σ  and  ≥ 2 of 4 image halves agree
+
+The 5%-harm operating point is kept as `STRICT_GATE` (dip depth ≥ 4.2σ, directional contrast ≥ 4σ,
+≥ 3 halves) and reported alongside. Using larger overlapping windows (2/3 of the region) for the
+agreement test was also tried on dev (with the earlier, unrestricted estimator); it shifted the operating point along the same trade-off curve
+without improving it, so plain halves were kept.
 
 ## 6. Evaluation choices
 

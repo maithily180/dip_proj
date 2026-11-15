@@ -14,3 +14,10 @@ scratch/
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+
+# LaTeX build logs
+docs/**/build*.txt
+*.blg
+*.bbl
+# keep the experiment console logs (they are results)
+!results/logs/*.log

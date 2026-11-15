@@ -110,7 +110,7 @@ def main():
     ax[2].set_ylim(min(full + inner) - 3, max(full + inner) + 1.5)
     ax[2].set_title("Boundary handling (30 iterations)"); ax[2].legend(frameon=False, fontsize=8)
     fig.tight_layout(); fig.savefig(FIG / "01_true_psf.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '01_true_psf.csv'} and {FIG / '01_true_psf.png'}")
+    print(f"\nwrote results/csv/01_true_psf.csv and results/figures/01_true_psf.png")
 
 
 if __name__ == "__main__":

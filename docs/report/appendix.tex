@@ -14,7 +14,7 @@ of the demo runs.
 \paragraph{Data splits.}
 \begin{center}
 \small
-\begin{tabular}{lrrl}
+\resizebox{\textwidth}{!}{\begin{tabular}{lrrl}
 \toprule
 Source & dev & test & selection \\
 \midrule
@@ -25,7 +25,7 @@ LPBlur pairs & 150 & 400 & stable hash; test drawn from the remainder \\
 CCPD-Blur & 150 & 400 & stable hash; test drawn from the remainder \\
 K\"ohler & -- & 48 & all images (reference only, no tuning) \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{center}
 Synthetic trials: 8 angles ($0, 22, 45, 67, 90, 112, 135, 157^\circ$) $\times$ 5 lengths
 (5, 9, 13, 19, 27\,px) $\times$ 4 noise levels ($\sigma = 0, 0.01, 0.02, 0.04$ on $[0,1]$, then 8-bit

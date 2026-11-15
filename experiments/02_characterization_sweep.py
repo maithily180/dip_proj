@@ -103,7 +103,7 @@ def main():
     fig.colorbar(im, ax=axes, shrink=0.85, label="mean angle error (deg)")
     fig.suptitle("Mean angle error by blur angle and noise", y=1.02)
     fig.savefig(FIG / "02_heatmap_angle_noise.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '02_sweep.csv.gz'} and figures 02_*.png")
+    print(f"\nwrote results/csv/02_sweep.csv.gz and figures 02_*.png")
 
 
 if __name__ == "__main__":

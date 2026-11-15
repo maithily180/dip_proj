@@ -1,0 +1,18 @@
+Classical blind motion deblurring reads the blur angle and length off the image's own spectrum
+(Radon transform and cepstrum) and inverts it with Richardson--Lucy deconvolution. It needs no
+training data and is fully interpretable, but it is developed on texture-rich photographs. We
+study it on license plates and printed text, add a text-aware stage and a confidence gate, and
+evaluate the complete pipeline on synthetic blur, the K\"ohler camera-shake benchmark and two public
+datasets of real blurred plates. A controlled sweep (8 angles $\times$ 5 lengths $\times$ 4 noise
+levels) shows that text content is not what breaks the estimator --- printed text in a plate-sized
+window is its easiest input (98.9\% success) --- but region size, noise and short blurs are. The
+planned edge-enhancing pre-processing \emph{halves} estimation success; what strengthens the blur
+signature on real plates is the opposite operation, restricting the search to the low band where
+resampled, compressed plate crops still carry signal. The final multi-band estimator raises OCR
+character accuracy on 397 held-out real motion-blurred plates (LPBlur) from 0.18 (blurred) and
+0.24 (classical baseline) to 0.50. A gate that requires a deep cepstral dip and agreement between
+image halves refuses 96--100\% of the harmful restorations on held-out synthetic data and on
+LPBlur makes only 0.8\% of the plates worse, while keeping a 2.3$\times$ accuracy gain. On
+CCPD-Blur, where the blur is mostly not linear motion, it refuses 82\% of the images and recovers
+most of the damage that unconditional deblurring causes, but does not improve on leaving those
+images alone.

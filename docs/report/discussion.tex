@@ -5,10 +5,12 @@
 \paragraph{What the hypothesis got right and wrong.} The proposal expected the classical estimator
 to be weakest on text because sparse strokes give a weak blur signature. The controlled sweep
 separates two effects the hypothesis had merged: \emph{content} and \emph{region size}. At full
-frame, natural images are easy; cut to a plate-sized window, they are no easier than printed text,
-and plates fall in between. What drives the failures is the number of samples that carry the null
-pattern (region size), the noise level, and short blurs whose first null lies near Nyquist. Plates
-are hard mainly because they are small.
+frame, natural images are easy; cut to a plate-sized window they become the hardest class, while
+printed text in the same window is the easiest --- its high-contrast, broadband strokes are exactly
+what produces deep, regular nulls. Plates fall in between because the window also holds bumper and
+background. What drives the failures is the number of samples that carry the null pattern (region
+size), the noise level, and short blurs whose first null lies far out in the spectrum. Plates are
+hard mainly because they are small.
 
 \paragraph{Why edge enhancement fails and band limiting works.} The proposal's pre-processing idea
 was to strengthen the strokes so the nulls stand out. In the frequency domain this is a high-pass
@@ -17,6 +19,9 @@ where the sinc nulls are already the weakest, and it adds structure of its own. 
 information of a long blur sits at low frequencies (its nulls are spaced $1/L$ apart), so the useful
 operation is the opposite one --- discard the upper band. The multi-band search keeps the benefit
 for short blurs by still trying the full band and letting the directionality of the dip decide.
+The one edge-type operator that helped on synthetic data, a mild Gaussian high-pass, is consistent
+with this picture: it flattens the steep low-frequency fall-off of the spectrum without boosting
+the noise band, whereas the Laplacian multiplies the spectrum by $|\omega|^2$.
 
 \paragraph{The gate is what makes the pipeline usable.} On real images the dominant risk is not a
 slightly wrong kernel but a wrong \emph{model}: defocus, curved or non-uniform shake and compression
@@ -28,7 +33,9 @@ and has an interpretable refusal reason.
 \paragraph{Limitations.}
 \begin{itemize}
   \item One spatially uniform straight-line kernel per image (as scoped in the proposal). The
-        K\"ohler results show how quickly this breaks on curved camera shake.
+        K\"ohler results show how quickly this breaks on curved camera shake --- even the best line
+        fit loses 1\,dB --- and the gate does not detect that failure, because a curved trajectory
+        is still consistent across image halves.
   \item LPBlur has no text labels; the reference is OCR of the paired sharp image, so plates whose
         sharp image is misread are excluded, and the reader's own errors add noise.
   \item The gate is calibrated on a mixture of synthetic and real development data. Its thresholds

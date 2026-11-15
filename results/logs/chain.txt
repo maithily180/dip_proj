@@ -3,3 +3,7 @@
 03_preprocess_comparison exit 0 2948s
 04_gate_calibration_eval exit 0 28s
 05_real_plates exit 0 1114s
+06_kohler exit 1 245s
+07_gallery exit 0 160s
+01_true_psf_check exit 0 318s
+06_kohler exit 0

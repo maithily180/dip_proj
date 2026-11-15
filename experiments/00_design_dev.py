@@ -92,7 +92,7 @@ def main():
                           "median_length": g.length.median()}).loc[list(VARIANTS)]
         print(f"\n== {ds} dev subset: OCR character accuracy, RL-30 with each variant's estimate ==")
         print(t.round(3).to_string())
-    print(f"\nwrote {CSV / '00_design_dev_synthetic.csv.gz'} and {CSV / '00_design_dev_real.csv'}")
+    print(f"\nwrote results/csv/00_design_dev_synthetic.csv.gz and results/csv/00_design_dev_real.csv")
 
 
 if __name__ == "__main__":
