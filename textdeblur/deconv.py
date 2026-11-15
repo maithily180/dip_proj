@@ -20,7 +20,23 @@ import numpy as np
 
 from .psf import pad_psf_to
 
-__all__ = ["richardson_lucy", "wiener", "deconvolve", "blur_fft"]
+__all__ = ["richardson_lucy", "wiener", "deconvolve", "blur_fft", "estimate_noise"]
+
+
+def estimate_noise(img: np.ndarray) -> float:
+    """Robust estimate of the additive-noise standard deviation.
+
+    Uses the median absolute deviation of the finest diagonal detail band
+    (Donoho & Johnstone).  A motion-blurred image has almost no energy in that
+    band, so what is left is noise.
+    """
+    g = np.asarray(img, dtype=float)
+    if g.ndim == 3:
+        g = g.mean(axis=-1)
+    h, w = (g.shape[0] // 2) * 2, (g.shape[1] // 2) * 2
+    g = g[:h, :w]
+    hh = (g[0::2, 0::2] - g[0::2, 1::2] - g[1::2, 0::2] + g[1::2, 1::2]) / 2.0
+    return float(np.median(np.abs(hh - np.median(hh))) / 0.6745)
 
 
 def _fast_len(n: int) -> int:
@@ -48,7 +64,8 @@ def blur_fft(img: np.ndarray, psf: np.ndarray) -> np.ndarray:
 
 
 def _rl_gray(
-    b: np.ndarray, psf: np.ndarray, num_iter: int, pad: int | None, tv: float, floor: float
+    b: np.ndarray, psf: np.ndarray, num_iter: int, pad: int | None, tv: float, floor: float,
+    stop_sigma: float = 0.0,
 ) -> np.ndarray:
     h, w = b.shape
     if pad is None:
@@ -70,8 +87,15 @@ def _rl_gray(
     norm = np.maximum(conv(mask, otf_c), 1e-3)
 
     est = np.pad(np.maximum(b, floor), ((pad, H - h - pad), (pad, W - w - pad)), mode="edge")
+    n_obs = float(h * w)
     for _ in range(int(num_iter)):
         reblur = conv(est, otf)
+        if stop_sigma > 0:
+            # discrepancy principle: once the residual is as small as the
+            # noise, further iterations can only fit noise
+            resid = np.sqrt(float(np.sum(mask * (data - reblur) ** 2)) / n_obs)
+            if resid <= stop_sigma:
+                break
         ratio = mask * data / np.maximum(reblur, floor)
         update = conv(ratio, otf_c) / norm
         if tv > 0:
@@ -90,6 +114,7 @@ def richardson_lucy(
     pad: int | None = None,
     tv: float = 0.0,
     floor: float = 1e-4,
+    stop: float | None = None,
 ) -> np.ndarray:
     """Richardson-Lucy deconvolution with unknown-boundary handling.
 
@@ -102,8 +127,15 @@ def richardson_lucy(
     pad      : margin (pixels) of unobserved canvas around the image;
                defaults to the PSF size.
     tv       : optional total-variation regularisation weight (0 = plain RL).
+    stop     : early stopping by the discrepancy principle.  Iteration ends
+               as soon as the RMS residual ``b - k*l`` falls to ``stop`` times
+               the estimated noise level, so ``num_iter`` becomes an upper
+               bound.  ``None`` disables it (fixed iteration count).
     """
-    return _per_channel(_rl_gray, img, psf, num_iter, pad, tv, floor)
+    stop_sigma = 0.0
+    if stop is not None:
+        stop_sigma = float(stop) * estimate_noise(img)
+    return _per_channel(_rl_gray, img, psf, num_iter, pad, tv, floor, stop_sigma)
 
 
 # --------------------------------------------------------------------------

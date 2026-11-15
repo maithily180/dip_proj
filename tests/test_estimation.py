@@ -5,7 +5,9 @@ import pytest
 from textdeblur.blur import add_noise, center_crop, convolve
 from textdeblur.cepstrum import cepstrum2d, polar_cepstrum, radon_cepstrum, weighted_log_spectrum
 from textdeblur.data import render_text_page
-from textdeblur.estimate import BASELINE, TEXT_AWARE, EstimatorConfig, clip_block_grid, estimate_blur
+from textdeblur.estimate import (
+    BASELINE, TEXT_AWARE, EstimatorConfig, clip_block_grid, estimate_blur, radon_transform,
+)
 from textdeblur.gate import GateConfig, auc, calibrate_threshold, confusion, decide, roc_curve
 from textdeblur.metrics import angle_error, psnr
 from textdeblur.pipeline import BASELINE_PIPELINE, PipelineConfig, deblur, deblur_with_psf
@@ -45,6 +47,20 @@ def test_projection_slice_equivalence():
     polar = polar_cepstrum(cepstrum2d(b), angles, 40)[:, 4:]
     rad = radon_cepstrum(weighted_log_spectrum(b), angles, 40)[:, 4:]
     assert np.corrcoef(polar.ravel(), rad.ravel())[0, 1] > 0.97
+
+
+def test_radon_transform_matches_skimage():
+    import warnings
+    from skimage.transform import radon
+
+    _, b = make(13, 35)
+    spec = weighted_log_spectrum(b)
+    angles = np.arange(0, 180, 7.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ref = radon(spec, theta=angles, circle=True)
+    ours = radon_transform(spec, angles)
+    assert np.abs(ours - ref).max() < 1e-3 * np.abs(ref).max()
 
 
 # -------------------------------------------------------- estimator -------

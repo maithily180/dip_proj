@@ -14,12 +14,11 @@ joint search; this module exists so that the difference can be measured.
 """
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
-from skimage.transform import radon
 
-from .estimate import BlurEstimate, EstimatorConfig, _disc_taper, _parabolic_min, _radon_profiles
+from .estimate import (
+    BlurEstimate, EstimatorConfig, _disc_taper, _parabolic_min, _radon_profiles, radon_transform,
+)
 from .preprocess import preprocess
 from .spectrum import log_spectrum, mask_center, next_pow2
 
@@ -32,9 +31,7 @@ def radon_angle(spec: np.ndarray, angle_step: float = 1.0) -> tuple[float, np.nd
     Returns ``(angle, angles, variances)``.
     """
     angles = np.arange(0.0, 180.0, angle_step)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        sino = radon(spec, theta=angles, circle=True)
+    sino = radon_transform(spec, angles)
     n = spec.shape[0]
     core = sino[n // 8 : n - n // 8]              # ignore the short chords near the rim
     var = core.var(axis=0)
