@@ -139,6 +139,7 @@ images. Random seeds are derived from the trial description, so reruns are ident
 
 ## Documentation
 
+* [`HANDOVER.md`](HANDOVER.md) — detailed record of all implementation work, decisions and next steps
 * [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md) — requirements traced from the proposal, milestones
 * [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md) — what was tried, what was kept, and why
 * [`docs/report/report.pdf`](docs/report/report.pdf) — final report
