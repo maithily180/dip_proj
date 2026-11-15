@@ -1,0 +1,44 @@
+% ================= DISCUSSION =================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What the hypothesis got right and wrong.} The proposal expected the classical estimator
+to be weakest on text because sparse strokes give a weak blur signature. The controlled sweep
+separates two effects the hypothesis had merged: \emph{content} and \emph{region size}. At full
+frame, natural images are easy; cut to a plate-sized window, they are no easier than printed text,
+and plates fall in between. What drives the failures is the number of samples that carry the null
+pattern (region size), the noise level, and short blurs whose first null lies near Nyquist. Plates
+are hard mainly because they are small.
+
+\paragraph{Why edge enhancement fails and band limiting works.} The proposal's pre-processing idea
+was to strengthen the strokes so the nulls stand out. In the frequency domain this is a high-pass
+filter: it raises exactly the band where noise, JPEG blocking and resampling artefacts live and
+where the sinc nulls are already the weakest, and it adds structure of its own. The blur
+information of a long blur sits at low frequencies (its nulls are spaced $1/L$ apart), so the useful
+operation is the opposite one --- discard the upper band. The multi-band search keeps the benefit
+for short blurs by still trying the full band and letting the directionality of the dip decide.
+
+\paragraph{The gate is what makes the pipeline usable.} On real images the dominant risk is not a
+slightly wrong kernel but a wrong \emph{model}: defocus, curved or non-uniform shake and compression
+cannot be explained by one straight line, yet the estimator always returns one. Dip depth alone
+cannot tell these cases apart. The test that does is physical: a uniform motion blur must give the
+same estimate in every part of the region. This is cheap (four more estimates), needs no training
+and has an interpretable refusal reason.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item One spatially uniform straight-line kernel per image (as scoped in the proposal). The
+        K\"ohler results show how quickly this breaks on curved camera shake.
+  \item LPBlur has no text labels; the reference is OCR of the paired sharp image, so plates whose
+        sharp image is misread are excluded, and the reader's own errors add noise.
+  \item The gate is calibrated on a mixture of synthetic and real development data. Its thresholds
+        reflect that mixture; a deployment with a very different blur distribution would need
+        recalibration (the calibration script does this from labelled examples).
+  \item The OCR read-out is a single off-the-shelf recogniser; absolute accuracies depend on it, the
+        comparisons between systems much less so.
+\end{itemize}
+
+\paragraph{Future work.} Natural extensions within the classical toolbox are a two-segment or
+curved kernel model with the same spectral evidence, local (patch-wise) estimation to handle
+non-uniform shake, and using the split-half estimates not only to refuse but to detect where the
+blur changes.

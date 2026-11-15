@@ -93,7 +93,7 @@ def sources() -> tuple[Source, ...]:
     return tuple(out)
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=4)
 def load_source(cls: str, ref: str) -> np.ndarray:
     """Sharp grayscale source image in [0, 1]."""
     if cls == "text":

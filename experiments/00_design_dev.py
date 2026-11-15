@@ -9,8 +9,10 @@ development data only:
   estimate (real motion blur);
 * CCPD-Blur dev subset - the same, on mostly non-linear real blur.
 
-The variants are the contrast/edge pre-processing operators the proposal set out
-to test and the spectral band limits the analysis led to.  The held-out
+The variants are the angle-search strategies (textbook two-stage rule, an
+unrestricted joint search, and the joint refinement around the Radon angle that
+became the baseline), the contrast/edge pre-processing operators the proposal
+set out to test, and the spectral band limits the analysis led to.  The held-out
 numbers in the report come from experiments 2-6, which never touch these images.
 
 Outputs: results/csv/00_design_dev_synthetic.csv, 00_design_dev_real.csv
@@ -26,10 +28,14 @@ from sweep import run_sweep
 from textdeblur.deconv import richardson_lucy
 from textdeblur.estimate import BASELINE, TEXT_AWARE, estimate_blur
 from textdeblur.metrics import char_accuracy
+from textdeblur.radon_angle import estimate_two_stage
 
 B = BASELINE
 VARIANTS = {
-    "gray": B,
+    "two_stage": B,                                  # textbook rule (Radon angle, then cepstral length)
+    "joint_search": B.with_(angle_window=None),      # unrestricted (direction x lag) search
+    "radon_window8": B.with_(angle_window=8.0),
+    "gray": B,                                       # baseline: joint refinement within +-3 deg of the Radon angle
     "clahe": B.with_(preprocess="clahe"),
     "lcn": B.with_(preprocess="lcn"),
     "homomorphic": B.with_(preprocess="homomorphic"),
@@ -39,7 +45,14 @@ VARIANTS = {
     "band0.5": B.with_(cutoff=0.5),
     "band0.3": B.with_(cutoff=0.3),
     "multiband": TEXT_AWARE,
+    "multiband_joint": TEXT_AWARE.with_(angle_window=None),
 }
+
+
+def estimate(name, cfg, img):
+    return estimate_two_stage(img, cfg) if name == "two_stage" else estimate_blur(img, cfg)
+
+
 N_REAL = 150
 
 
@@ -49,7 +62,7 @@ def real_row(item):
     before = char_accuracy(it.reader(b), it.truth)
     rows = []
     for name, cfg in VARIANTS.items():
-        est = estimate_blur(b, cfg)
+        est = estimate(name, cfg, b)
         after = char_accuracy(it.reader(np.clip(richardson_lucy(b, est.psf(), num_iter=30), 0, 1)), it.truth)
         rows.append(dict(dataset=item.dataset, image=item.name, truth=it.truth, variant=name,
                          angle=est.angle, length=est.length, cutoff=est.cutoff, confidence=est.confidence,

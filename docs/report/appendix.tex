@@ -1,0 +1,39 @@
+% ================= APPENDIX =================
+\section{Reproducibility}
+\label{app:repro}
+
+\paragraph{Code.} The library (\texttt{textdeblur/}) depends only on NumPy, SciPy, scikit-image,
+OpenCV and pandas; RapidOCR is needed for the OCR read-out and Streamlit for the demo. The test
+suite (\texttt{pytest}) checks, among other things, that the area-sampled PSF is an exact box on the
+axes and sums to one, that the fast Radon transform matches \texttt{skimage.transform.radon}, that
+the 1-D FFT of Radon projections equals the radial slice of the 2-D cepstrum (projection--slice
+theorem), that the estimator recovers clean blurs over a grid of angles and lengths, that RL with the
+true PSF improves PSNR, that a refused restoration returns the input bit-for-bit, and that every mode
+of the demo runs.
+
+\paragraph{Data splits.}
+\begin{center}
+\small
+\begin{tabular}{lrrl}
+\toprule
+Source & dev & test & selection \\
+\midrule
+Kodak (natural) & 8 & 16 & kodim01--08 dev, 09--24 test \\
+Rendered printed text & 8 & 16 & page index \\
+Sharp CCPD-Base plates & 8 & 24 & stable hash of file name, CCPD blur score $\ge 60$, plate width 200--300\,px \\
+LPBlur pairs & 150 & 400 & stable hash; test drawn from the remainder \\
+CCPD-Blur & 150 & 400 & stable hash; test drawn from the remainder \\
+K\"ohler & -- & 48 & all images (reference only, no tuning) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Synthetic trials: 8 angles ($0, 22, 45, 67, 90, 112, 135, 157^\circ$) $\times$ 5 lengths
+(5, 9, 13, 19, 27\,px) $\times$ 4 noise levels ($\sigma = 0, 0.01, 0.02, 0.04$ on $[0,1]$, then 8-bit
+quantisation) per source; the whole source is blurred before the $96\times256$ evaluation window is
+cut, so content from outside the window is smeared into it as in a real photograph. A trial counts as
+a success when the angle is within $5^\circ$ and the length within 2\,px.
+
+\paragraph{Running.} \texttt{python experiments/run\_all.py} runs experiments 00--07 in order and writes
+every table to \texttt{results/csv}, every figure to \texttt{results/figures} and every console
+output to \texttt{results/logs}. Seeds are derived from the trial description, so reruns are
+bit-identical. The full run takes about two to three hours on a 22-thread laptop.

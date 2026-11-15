@@ -6,17 +6,29 @@ come from test images that none of these decisions saw. `experiments/00_design_d
 regenerates the development evidence for decisions 3 and 4; `experiments/04_gate_calibration.py`
 regenerates decision 5.
 
-## 1. Joint (angle, length) search instead of the two-stage textbook rule
+## 1. Radon angle with a joint refinement (and a correction to phase 0)
 
-*Phase 0* found that picking the angle as the direction of maximum Radon-projection variance is
-fragile: the image's own dominant edges (character strokes, plate borders) produce high-variance
-projections too, and the angle is decided before any cepstral evidence is consulted. A joint search
-over the full (direction × lag) cepstrum map was more reliable.
+*Phase 0* suggested that picking the angle as the direction of maximum Radon-projection variance is
+fragile, because character strokes also produce high-variance projections, and that an
+unrestricted joint search over the whole (direction × lag) cepstrum map would be more reliable.
+The library was first built that way.
 
-Kept: the deepest negative dip of the Radon-cepstrum map gives both parameters. The angle is
-still Radon-based and the length cepstrum-based, so this stays within the proposal's pipeline and does
-not turn into a Radon-vs-cepstrum benchmark (out of scope). The two-stage rule stays in the code
-(`textdeblur/radon_angle.py`) as a reference row in experiment 2.
+The first full test-split sweep contradicted it: the textbook two-stage rule beat the unrestricted
+joint search on every class. Rather than pick the winner on test data, the comparison was redone on
+the **development split** (synthetic, 3,840 trials per variant):
+
+| angle strategy | success | mean angle error |
+|---|---|---|
+| unrestricted joint search | 85.5% | 5.5° |
+| textbook two-stage (Radon-variance angle, then cepstral length) | 89.5% | 1.4° |
+| joint search within ±8° of the Radon angle | 88.9% | 1.6° |
+| **joint search within ±3° of the Radon angle** | **90.7%** | **1.3°** |
+
+The unrestricted search fails by locking onto isolated deep dips in a wrong direction; the
+variance rule integrates the whole spectrum and is the more robust angle cue. Kept: Radon-variance
+angle, cepstral length, joint refinement within ±3° (`BASELINE = EstimatorConfig(angle_window=3.0)`).
+This is the proposal's pipeline as written. The two alternatives remain as reference rows in
+experiments 0 and 2 (`textdeblur/radon_angle.py`, `angle_window=None`).
 
 ## 2. Real Radon transform, isotropic grid, fast implementation
 
@@ -33,37 +45,51 @@ We implemented nine operators (CLAHE, unsharp mask, Gaussian high-pass, Laplacia
 magnitude, LCN, homomorphic filtering, LCN + Laplacian) and tested them on the synthetic dev
 sweep and on real plates.
 
-* On synthetic data none of them improved estimation success; edge emphasis lowered it under
-  noise, because it amplifies the high-frequency band where noise dominates and where the sinc
-  nulls are already the weakest.
-* On real LPBlur plates (dev), contrast and edge operators lowered OCR accuracy after restoration,
-  and LCN collapsed it.
+Development evidence with the final code (`experiments/00_design_dev.py`; synthetic dev split,
+3,840 trials per variant; LPBlur dev n = 147 and CCPD-Blur dev n = 150, OCR character accuracy after
+RL-30 with each variant's estimate):
+
+| variant (in front of the baseline estimator) | synthetic success | LPBlur OCR | CCPD-Blur OCR |
+|---|---|---|---|
+| blurred input (no restoration) | – | 0.234 | 0.768 |
+| plain grayscale (baseline) | 90.7% | 0.280 | 0.256 |
+| CLAHE | 87.8% | 0.280 | 0.234 |
+| local contrast normalisation (LCN) | 91.4% | 0.289 | 0.339 |
+| homomorphic filtering | 90.5% | 0.253 | 0.274 |
+| **LCN + Laplacian (the proposed stage)** | **46.4%** | 0.239 | 0.584* |
+| SNR-adaptive band limit | 79.7% | 0.332 | 0.171 |
+| band limit 0.5 | 75.1% | 0.463 | 0.137 |
+| band limit 0.3 | 55.4% | 0.637 | 0.098 |
+| **multi-band search {1, 0.5, 0.3}** | **87.6%** | **0.515** | 0.214 |
+
+\* It scores well on CCPD only because it returns very short kernels (median 8 px), so the
+restoration barely changes the image; it is the worst variant at actually estimating blur.
+
+* On synthetic data the contrast operators are neutral (LCN +0.7 points), but the proposed
+  edge-enhanced combination roughly halves estimation success: the Laplacian amplifies the
+  high-frequency band where noise dominates and the sinc nulls are weakest.
+* On real LPBlur plates none of the contrast operators moves OCR accuracy noticeably.
 
 The analysis of the failures pointed the opposite way. Real plate crops are small, upsampled and
 JPEG-compressed: above some radius their spectrum carries no genuine image signal, only noise and
-compression residue that bury the blur nulls. Restricting the spectrum to a lower band:
+compression residue that bury the blur nulls, and that also corrupt the Radon-variance angle (the
+full-band baseline returns implausibly long kernels on LPBlur, median 51 px). Restricting the band
+fixes both: a limit of 0.3 Nyquist raises LPBlur OCR from 0.28 to 0.64.
 
-| LPBlur dev (n=147), OCR char. accuracy after RL-30 | |
-|---|---|
-| blurred input | 0.234 |
-| full band (classical) | 0.359 |
-| SNR-adaptive band limit | 0.490 |
-| band limit 0.5 | 0.518 |
-| band limit 0.3 | 0.587 |
-| multi-band search {1, 0.5, 0.3} | 0.545 |
+A fixed limit of 0.3 Nyquist **destroys short blurs**, though: the first null of an L-pixel blur lies
+at 2/L of Nyquist, so for L ≤ 9 no null falls inside the band (synthetic dev success at L = 5: 0%).
+The multi-band search runs the estimator at limits {1, 0.5, 0.3} and keeps the estimate whose dip is
+most *directional* (angular z-score): 87.6% synthetic success (−3.1 points against the full band) and
+0.515 on LPBlur (+0.235). Selecting the band by dip depth instead of directionality picked the full
+band too often. A relaxed rule favouring low bands gained at most +0.05 on LPBlur, at a further
+synthetic cost, so the plain argmax was kept. An unrestricted joint search inside the multi-band
+stage gave 0.553 on LPBlur but 84.0% on synthetic data; the Radon-angle version was kept for
+consistency with the baseline.
 
-(first development run; `00_design_dev.py` reproduces the comparison with the final code.)
+**Final:** `TEXT_AWARE = BASELINE.with_(cutoff=(1.0, 0.5, 0.3))`.
 
-A fixed limit of 0.3 Nyquist is the best on LPBlur but **destroys short blurs**: the first null of an
-L-pixel blur lies at 2/L of Nyquist, so for L ≤ 9 there is no null inside the band (synthetic dev
-success at L = 5 drops from 64% to 0%). The multi-band search runs the joint search at limits
-{1, 0.5, 0.3} and keeps the estimate whose dip is most *directional* (angular z-score). Synthetic dev:
-84.0% success vs. 85.6% for the full band (L = 5: 54% vs. 64%); LPBlur dev: 0.545 vs. 0.359.
-Selecting by dip depth instead of directionality picked the full band too often (0.359); also
-selecting by a relaxed rule favouring low bands gave at most +0.05 on LPBlur at a further synthetic
-cost, so the plain argmax was kept.
-
-**Final:** `TEXT_AWARE = EstimatorConfig(cutoff=(1.0, 0.5, 0.3))`.
+CCPD-Blur is harmed by every variant (≈ 85% of images get worse): its blur is mostly not uniform
+linear motion. That is the gate's job, not the estimator's.
 
 Also tried and rejected: clipping the JPEG 8×8 block-grid lines in the spectrum (`notch_grid`; no
 gain on CCPD, slightly worse on LPBlur), angular detrending of the cepstrum map, Hann instead of Tukey

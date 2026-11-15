@@ -229,17 +229,24 @@ def main():
     fig.suptitle("Gate signals: ROC for 'the restoration will help' (AUC in brackets)", y=1.02)
     fig.savefig(FIG / "04_gate_roc.png"); plt.close(fig)
 
-    fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.6), sharey=True)
+    # trade-off: harm avoided vs. good withheld while sweeping the dip-depth
+    # threshold, one curve per agreement requirement
+    fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.9), sharey=True)
+    ag_colors = {0: "#bbbbbb", 1: "#8fb3d9", 2: "#2a6fb0", 3: "#1b3f66"}
     for ax, (k, s) in zip(axes, sets.items()):
-        zs = np.linspace(0, np.quantile(s.angular_z, 0.98), 40)
-        ev = [evaluate(s, GateConfig(min_confidence=DEFAULT_GATE.min_confidence, min_angular_z=z,
-                                     min_agreement=DEFAULT_GATE.min_agreement)) for z in zs]
-        ax.plot(zs, [100 * e["harm_avoided"] for e in ev], color="#2a6fb0", lw=2, label="harm avoided")
-        ax.plot(zs, [100 * e["good_withheld"] for e in ev], color="#c0392b", lw=2, label="good restorations withheld")
-        ax.axvline(DEFAULT_GATE.min_angular_z, color="k", lw=0.8, ls="--")
-        ax.set_title(k); ax.set_xlabel("directional-contrast threshold (sigma)")
-    axes[0].set_ylabel("% of harmful / helpful cases"); axes[0].legend(frameon=False, fontsize=8)
-    fig.suptitle("Trade-off of the gate threshold (other tests fixed at their frozen values; dashed: frozen)", y=1.03)
+        cs = np.r_[0.0, np.quantile(s.confidence, np.linspace(0, 0.98, 40))]
+        for ag, col in ag_colors.items():
+            ev = [evaluate(s, GateConfig(min_confidence=float(c), min_agreement=ag)) for c in cs]
+            ax.plot([100 * e["good_withheld"] for e in ev], [100 * e["harm_avoided"] for e in ev],
+                    color=col, lw=1.8, label=f">= {ag} of 4 halves agree")
+        for g, mk, lab in ((DEFAULT_GATE, "*", "frozen gate"), (STRICT_GATE, "s", "strict gate")):
+            e = evaluate(s, g)
+            ax.plot(100 * e["good_withheld"], 100 * e["harm_avoided"], mk, color="#c0392b", ms=11 if mk == "*" else 7,
+                    label=lab)
+        ax.set_xlim(-2, 102); ax.set_ylim(-2, 102)
+        ax.set_title(f"{k} (dev)"); ax.set_xlabel("helpful restorations withheld (%)")
+    axes[0].set_ylabel("harmful restorations avoided (%)"); axes[0].legend(frameon=False, fontsize=7.5, loc="lower right")
+    fig.suptitle("Gate trade-off: sweeping the dip-depth threshold for each agreement requirement", y=1.02)
     fig.savefig(FIG / "04_gate_tradeoff.png"); plt.close(fig)
     print("\nwrote results/csv/04_*.csv, results/gate_calibration.json, results/figures/04_*.png")
 

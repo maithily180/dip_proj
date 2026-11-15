@@ -157,8 +157,8 @@ def confusion(accept: np.ndarray, good: np.ndarray) -> dict[str, int]:
 #: CCPD-Blur dev subsets) by ``experiments/04_gate_calibration.py``: the
 #: thresholds with the best mean net share (net gain let through / total
 #: stakes) over the three sets.
-DEFAULT_GATE = GateConfig(min_confidence=3.0, min_agreement=2)
+DEFAULT_GATE = GateConfig(min_confidence=4.4, min_agreement=2)
 
 #: The strictest operating point of the same calibration: the most helpful
 #: restorations kept while harming at most 5% of the images of every dev set.
-STRICT_GATE = GateConfig(min_agreement=3)
+STRICT_GATE = GateConfig(min_confidence=4.2, min_angular_z=4.0, min_agreement=3)

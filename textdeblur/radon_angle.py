@@ -17,10 +17,10 @@ from __future__ import annotations
 import numpy as np
 
 from .estimate import (
-    BlurEstimate, EstimatorConfig, _disc_taper, _parabolic_min, _radon_profiles, radon_transform,
+    BlurEstimate, EstimatorConfig, _disc_taper, _parabolic_min, _radon_profiles, radon_variance,
 )
 from .preprocess import preprocess
-from .spectrum import log_spectrum, mask_center, next_pow2
+from .spectrum import log_spectrum, next_pow2
 
 __all__ = ["radon_angle", "estimate_two_stage"]
 
@@ -31,10 +31,7 @@ def radon_angle(spec: np.ndarray, angle_step: float = 1.0) -> tuple[float, np.nd
     Returns ``(angle, angles, variances)``.
     """
     angles = np.arange(0.0, 180.0, angle_step)
-    sino = radon_transform(spec, angles)
-    n = spec.shape[0]
-    core = sino[n // 8 : n - n // 8]              # ignore the short chords near the rim
-    var = core.var(axis=0)
+    var = radon_variance(spec, angles)
     return float(angles[int(np.argmax(var))]), angles, var
 
 
@@ -48,7 +45,7 @@ def estimate_two_stage(img: np.ndarray, config: EstimatorConfig | None = None) -
     taper = _disc_taper(n, 1.0)
     spec_w = (spec - np.median(spec[taper > 0])) * taper
 
-    angle, angles, _ = radon_angle(mask_center(spec_w, 3, 0.0), cfg.angle_step)
+    angle, angles, _ = radon_angle(spec_w, cfg.angle_step)
 
     max_len = cfg.max_length if cfg.max_length is not None else 0.3 * max(h, w)
     lo = int(np.ceil(cfg.min_length))

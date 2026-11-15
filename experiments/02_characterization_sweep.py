@@ -11,7 +11,9 @@ synthetic blur (proposal objective 2), comparing
 Separating *content* from *region size* matters: a license plate is not only
 low-texture, it is also a small region, and the two effects are easy to
 confuse.  The textbook two-stage rule (Radon-variance angle, then cepstral
-length) is run alongside the joint estimator as a reference point.
+length) and an unrestricted joint (direction x lag) search are run alongside
+the baseline estimator (joint refinement within +-3 deg of the Radon angle) as
+reference points.
 
 Outputs: results/csv/02_sweep.csv, 02_summary.csv, results/figures/02_*.png
 """
@@ -28,7 +30,8 @@ ORDER = ["natural_full", "natural", "text", "plate"]
 
 
 def main():
-    df = run_sweep({"baseline": BASELINE, "two_stage": BASELINE}, split="test",
+    df = run_sweep({"baseline": BASELINE, "two_stage": BASELINE, "joint_search": BASELINE.with_(angle_window=None)},
+                   split="test",
                    restore_for=("baseline",), full_frame_natural=True, desc="characterisation sweep")
     df.to_csv(CSV / "02_sweep.csv", index=False)
     summ = summary(df)
@@ -39,14 +42,14 @@ def main():
     print(summ.round(2).to_string(index=False))
 
     base = df[df.variant == "baseline"]
-    print("\n== Joint estimator: success (%) by noise level ==")
+    print("\n== Baseline estimator: success (%) by noise level ==")
     print((100 * base.pivot_table(index="cls", columns="sigma", values="success")).loc[ORDER].round(1).to_string())
-    print("\n== Joint estimator: success (%) by blur length ==")
+    print("\n== Baseline estimator: success (%) by blur length ==")
     print((100 * base.pivot_table(index="cls", columns="length", values="success")).loc[ORDER].round(1).to_string())
-    print("\n== Joint estimator: success (%) by blur angle ==")
+    print("\n== Baseline estimator: success (%) by blur angle ==")
     print((100 * base.pivot_table(index="cls", columns="angle", values="success")).loc[ORDER].round(1).to_string())
 
-    print("\n== Restoration quality with the estimated PSF (joint estimator), mean dB ==")
+    print("\n== Restoration quality with the estimated PSF (baseline estimator), mean dB ==")
     q = base.groupby("cls")[["psnr_blur", "psnr_est", "psnr_true"]].mean().loc[ORDER]
     q["harmful_pct"] = 100 * base.assign(h=base.psnr_est < base.psnr_blur).groupby("cls").h.mean().loc[ORDER]
     print(q.round(2).to_string())
@@ -54,18 +57,19 @@ def main():
     plt = setup_matplotlib()
 
     # --- figure: success-rate bars, two estimators x four conditions
-    fig, ax = plt.subplots(figsize=(8.2, 3.9))
-    x = np.arange(len(ORDER)); w = 0.38
-    for k, (variant, label, color) in enumerate([("two_stage", "textbook two-stage rule", "#b0b0b0"),
-                                                 ("baseline", "joint Radon-cepstrum search", "#2a6fb0")]):
+    fig, ax = plt.subplots(figsize=(9.0, 3.9))
+    x = np.arange(len(ORDER)); w = 0.27
+    for k, (variant, label, color) in enumerate([("joint_search", "unrestricted joint search", "#d9d9d9"),
+                                                 ("two_stage", "textbook two-stage rule", "#a0a0a0"),
+                                                 ("baseline", "Radon angle + joint refinement (baseline)", "#2a6fb0")]):
         s = summ[summ.variant == variant].set_index("cls").loc[ORDER]
-        ax.bar(x + (k - 0.5) * w, s.success_pct, w, yerr=s.ci95_pct, capsize=3, label=label, color=color)
-        for xi, v in zip(x + (k - 0.5) * w, s.success_pct):
-            ax.text(xi, v + 2.5, f"{v:.0f}", ha="center", fontsize=8.5)
+        ax.bar(x + (k - 1) * w, s.success_pct, w, yerr=s.ci95_pct, capsize=2.5, label=label, color=color)
+        for xi, v in zip(x + (k - 1) * w, s.success_pct):
+            ax.text(xi, v + 2.5, f"{v:.0f}", ha="center", fontsize=7.5)
     ax.set_xticks(x, [CLASS_LABELS[c].replace(", ", "\n") for c in ORDER])
     ax.set_ylabel("PSF estimation success (%)"); ax.set_ylim(0, 112)
     ax.set_title("Classical PSF estimation by image class (all angles, lengths, noise levels)")
-    ax.legend(frameon=False, loc="upper right", fontsize=8.5, ncol=2)
+    ax.legend(frameon=False, loc="upper center", fontsize=8, ncol=3)
     fig.savefig(FIG / "02_success_by_class.png"); plt.close(fig)
 
     # --- figure: heatmaps length x noise per class

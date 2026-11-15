@@ -29,7 +29,7 @@ from scipy import ndimage
 
 from .preprocess import preprocess
 from .psf import motion_psf
-from .spectrum import log_spectrum, next_pow2
+from .spectrum import log_spectrum, mask_center, next_pow2
 
 __all__ = [
     "EstimatorConfig", "BlurEstimate", "estimate_blur", "radon_transform", "BASELINE", "TEXT_AWARE",
@@ -56,6 +56,10 @@ class EstimatorConfig:
     angular_detrend : subtract, at every lag, the median over directions; this
                       removes isotropic rings so only *directional* dips count.
     min_size        : minimum FFT size.
+    angle_window    : if set, the joint search is restricted to directions
+                      within this many degrees of the Radon-variance angle
+                      (the direction whose projection of the log-spectrum
+                      oscillates most); ``None`` searches all directions.
     """
 
     preprocess: str = "gray"
@@ -68,6 +72,7 @@ class EstimatorConfig:
     notch_grid: bool = False
     angular_detrend: bool = False
     min_size: int = 256
+    angle_window: float | None = None
 
     def with_(self, **changes) -> "EstimatorConfig":
         return replace(self, **changes)
@@ -185,6 +190,19 @@ def radon_transform(img: np.ndarray, angles: np.ndarray) -> np.ndarray:
     return out
 
 
+def radon_variance(spec: np.ndarray, angles: np.ndarray) -> np.ndarray:
+    """Variance of the Radon projections of a centred log-spectrum, per angle.
+
+    The projection taken *along* the null stripes integrates each stripe
+    separately and so oscillates the most: the classical Radon angle rule
+    picks the angle of maximum variance.  The DC peak is masked and the short
+    chords near the rim are ignored.
+    """
+    n = spec.shape[0]
+    sino = radon_transform(mask_center(spec, 3, 0.0), angles)
+    return sino[n // 8 : n - n // 8].var(axis=0)
+
+
 def _radon_profiles(spec: np.ndarray, angles: np.ndarray, n_lags: int) -> np.ndarray:
     n = spec.shape[0]
     sino = radon_transform(spec, angles)
@@ -222,7 +240,13 @@ def _search(spec: np.ndarray, cfg: EstimatorConfig, cutoff: float, h: int, w: in
         prof = prof - np.median(prof, axis=0, keepdims=True)
 
     region = prof[:, lo : hi + 1]
-    ia, il = np.unravel_index(int(np.argmin(region)), region.shape)
+    if cfg.angle_window is not None:
+        var = radon_variance(spec_w, angles)
+        a_r = angles[int(np.argmax(var))]
+        allowed = np.abs(((angles - a_r + 90) % 180) - 90) <= cfg.angle_window
+        ia, il = np.unravel_index(int(np.argmin(np.where(allowed[:, None], region, np.inf))), region.shape)
+    else:
+        ia, il = np.unravel_index(int(np.argmin(region)), region.shape)
     angle = float(angles[ia])
     best_profile = prof[ia]
 
@@ -300,9 +324,13 @@ def estimate_blur(img: np.ndarray, config: EstimatorConfig | None = None) -> Blu
     return best
 
 
-#: The classical pipeline as it stands in the literature: plain luminance in,
-#: Radon + cepstrum out.
-BASELINE = EstimatorConfig()
+#: The classical pipeline (proposal, Sec. 2): plain luminance, full band; the
+#: blur angle from the Radon transform of the log-spectrum (direction of
+#: maximum projection variance), the length from the cepstrum along it.  The
+#: (angle, length) pair is refined jointly within +-3 degrees of the Radon
+#: angle, which on the development split beat both the pure two-stage rule and
+#: an unrestricted joint search (see ``docs/DESIGN_DECISIONS.md``).
+BASELINE = EstimatorConfig(angle_window=3.0)
 
 #: The text-aware estimator.  Plates and printed text in real photographs are
 #: small, upsampled and compressed, so the upper part of their spectrum holds
@@ -314,4 +342,4 @@ BASELINE = EstimatorConfig()
 #: (synthetic dev split and LPBlur dev subset); see ``docs/DESIGN_DECISIONS.md``.
 #: Classical contrast/edge enhancement was tested for this role and rejected:
 #: it amplifies exactly the high-frequency noise that hides the nulls.
-TEXT_AWARE = EstimatorConfig(cutoff=(1.0, 0.5, 0.3))
+TEXT_AWARE = BASELINE.with_(cutoff=(1.0, 0.5, 0.3))

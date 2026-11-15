@@ -15,7 +15,7 @@ which vanishes on parallel lines perpendicular to the motion direction $u_\theta
 $1/L$ cycles per pixel apart. Both blur parameters are encoded in this null pattern: its
 orientation gives $\theta$ and its spacing gives $L$.
 
-\subsection{Joint Radon--cepstrum estimator}
+\subsection{Radon--cepstrum estimator}
 The estimator works on the log-magnitude spectrum $S = \log(\epsilon + |\mathcal{F}\{w\cdot g\}|)$
 of the windowed (Tukey), mean-removed grayscale image $g$, zero-padded to a square grid of at
 least $256\times256$ so that all directions are sampled isotropically. The spectrum is median
@@ -36,15 +36,23 @@ length $L$, $\log|\operatorname{sinc}|$ has period $1/L$ and its cepstrum has a 
 \emph{negative} peak at lag $L$. The (direction, lag) map
 $P(\phi, q)$ therefore shows a single deep negative dip at $(\theta, L)$.
 
-\paragraph{Joint search.} The textbook recipe picks the angle first (largest variance of the
-Radon projections) and only then reads the length off the cepstrum. The angle step uses no
-cepstral evidence, so the image's own dominant edge directions compete with the blur stripes
---- exactly the failure the phase-0 sanity check exposed on text. We instead locate the global
-minimum of $P$ over $\phi\in[0,180)$ and $q\in[q_{\min}, q_{\max}]$, refine the angle at
-$0.25^\circ$ resolution around it and the lag by parabolic interpolation. The angle is still
-Radon-based (it is the projection direction carrying the strongest periodic null pattern) and the
-length is still cepstrum-based; doing both in one search is what makes the classical
-pipeline robust. The textbook two-stage rule is kept as a reference in the evaluation.
+\paragraph{Angle, then length.} The Radon angle $\theta_R$ is the direction of maximum variance
+of the projections of $S$ (DC masked, short rim chords ignored): integrating along the null
+stripes keeps them separate, so that projection oscillates the most. The length is the lag of the
+deepest negative dip of $P(\theta, q)$ for $q\in[q_{\min}, q_{\max}]$, refined by parabolic
+interpolation. Our estimator searches $P$ jointly over $q$ and the directions within
+$\pm3^\circ$ of $\theta_R$, then refines the angle at $0.25^\circ$ resolution, so a slightly
+misplaced variance maximum is corrected by the cepstral evidence.
+
+Phase~0 had suggested replacing the Radon angle by an unrestricted joint search over all
+directions, on the grounds that strong strokes compete with the blur stripes in the variance. The
+full evaluation showed the opposite: the unrestricted search is fooled by isolated deep dips in
+the wrong direction more often than the variance rule is fooled by strokes. On the development
+split the windowed refinement beat both alternatives (90.7\% success, vs.\ 89.5\% for the textbook
+two-stage rule and 85.5\% for the unrestricted search; mean angle error $1.3^\circ$ vs.\
+$1.4^\circ$ and $5.5^\circ$). This was noticed when the first test-split sweep ranked the
+two-stage rule above the unrestricted search; the choice itself was then made on development data
+only, and both alternatives are reported as reference rows.
 
 \subsection{The text-aware stage}
 \label{sec:textaware}
