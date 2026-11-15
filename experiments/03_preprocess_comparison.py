@@ -12,9 +12,11 @@ Every candidate is inserted in front of the *same* estimator and run on the
   limit (``band``), fixed limits (``band0.5``, ``band0.3``), combinations with
   contrast enhancement, and the final multi-band search (``text_aware``).
 
-Outputs: results/csv/03_preprocess.csv, 03_summary.csv, results/figures/03_*.png
+Outputs: results/csv/03_preprocess.csv.gz, 03_summary.csv, results/figures/03_*.png
 """
 from __future__ import annotations
+
+import sys
 
 import numpy as np
 import pandas as pd
@@ -52,9 +54,12 @@ ORDER = ["natural", "text", "plate"]
 
 
 def main():
-    df = run_sweep(VARIANTS, split="test", restore_for=("gray", "text_aware"),
-                   agreement_for=("gray", "text_aware"), desc="pre-processing sweep")
-    df.to_csv(CSV / "03_preprocess.csv", index=False)
+    if "--plot-only" in sys.argv:                     # redraw from a previous run
+        df = pd.read_csv(CSV / "03_preprocess.csv.gz")
+    else:
+        df = run_sweep(VARIANTS, split="test", restore_for=("gray", "text_aware"),
+                       agreement_for=("gray", "text_aware"), desc="pre-processing sweep")
+        df.to_csv(CSV / "03_preprocess.csv.gz", index=False)
     summ = summary(df)
     summ.to_csv(CSV / "03_summary.csv", index=False)
 
@@ -90,8 +95,8 @@ def main():
         ax.axhline(tab.loc["gray", cls], color=colors[cls], lw=0.8, ls=":")
     ax.set_xticks(x, [LABELS[n] for n in names], rotation=32, ha="right")
     ax.set_ylabel("PSF estimation success (%)"); ax.set_ylim(0, 105)
-    ax.set_title("Effect of pre-processing on PSF estimation (dotted lines: plain grayscale)")
-    ax.legend(frameon=False, ncol=3, fontsize=8.5, loc="upper center")
+    ax.set_title("Effect of pre-processing on PSF estimation (dotted lines: plain grayscale)", pad=24)
+    ax.legend(frameon=False, ncol=3, fontsize=8.5, loc="lower center", bbox_to_anchor=(0.5, 0.99))
     fig.savefig(FIG / "03_preprocess_success.png"); plt.close(fig)
 
     fig, axes = plt.subplots(1, 3, figsize=(13, 3.7), sharey=True)
@@ -106,7 +111,7 @@ def main():
     axes[0].set_ylabel("success (%)"); axes[2].legend(frameon=False, fontsize=7.5, loc="lower left")
     fig.suptitle("Pre-processing variants under increasing noise", y=1.02)
     fig.savefig(FIG / "03_preprocess_noise.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '03_preprocess.csv'} and figures 03_*.png")
+    print(f"\nwrote {CSV / '03_preprocess.csv.gz'} and figures 03_*.png")
 
 
 if __name__ == "__main__":

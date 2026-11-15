@@ -15,7 +15,7 @@ became the baseline), the contrast/edge pre-processing operators the proposal
 set out to test, and the spectral band limits the analysis led to.  The held-out
 numbers in the report come from experiments 2-6, which never touch these images.
 
-Outputs: results/csv/00_design_dev_synthetic.csv, 00_design_dev_real.csv
+Outputs: results/csv/00_design_dev_synthetic.csv.gz, 00_design_dev_real.csv
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def real_row(item):
 def main():
     pd.set_option("display.width", 200)
     syn = run_sweep(VARIANTS, split="dev", desc="design dev (synthetic)")
-    syn.to_csv(CSV / "00_design_dev_synthetic.csv", index=False)
+    syn.to_csv(CSV / "00_design_dev_synthetic.csv.gz", index=False)
     tab = (100 * syn.pivot_table(index="variant", columns="cls", values="success")).loc[list(VARIANTS)]
     tab["mean"] = tab.mean(axis=1)
     print("== Synthetic dev split: estimation success (%) =="); print(tab.round(1).to_string())
@@ -92,7 +92,7 @@ def main():
                           "median_length": g.length.median()}).loc[list(VARIANTS)]
         print(f"\n== {ds} dev subset: OCR character accuracy, RL-30 with each variant's estimate ==")
         print(t.round(3).to_string())
-    print(f"\nwrote {CSV / '00_design_dev_synthetic.csv'} and {CSV / '00_design_dev_real.csv'}")
+    print(f"\nwrote {CSV / '00_design_dev_synthetic.csv.gz'} and {CSV / '00_design_dev_real.csv'}")
 
 
 if __name__ == "__main__":

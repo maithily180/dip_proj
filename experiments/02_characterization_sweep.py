@@ -15,7 +15,7 @@ length) and an unrestricted joint (direction x lag) search are run alongside
 the baseline estimator (joint refinement within +-3 deg of the Radon angle) as
 reference points.
 
-Outputs: results/csv/02_sweep.csv, 02_summary.csv, results/figures/02_*.png
+Outputs: results/csv/02_sweep.csv.gz, 02_summary.csv, results/figures/02_*.png
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def main():
     df = run_sweep({"baseline": BASELINE, "two_stage": BASELINE, "joint_search": BASELINE.with_(angle_window=None)},
                    split="test",
                    restore_for=("baseline",), full_frame_natural=True, desc="characterisation sweep")
-    df.to_csv(CSV / "02_sweep.csv", index=False)
+    df.to_csv(CSV / "02_sweep.csv.gz", index=False)
     summ = summary(df)
     summ.to_csv(CSV / "02_summary.csv", index=False)
 
@@ -103,7 +103,7 @@ def main():
     fig.colorbar(im, ax=axes, shrink=0.85, label="mean angle error (deg)")
     fig.suptitle("Mean angle error by blur angle and noise", y=1.02)
     fig.savefig(FIG / "02_heatmap_angle_noise.png"); plt.close(fig)
-    print(f"\nwrote {CSV / '02_sweep.csv'} and figures 02_*.png")
+    print(f"\nwrote {CSV / '02_sweep.csv.gz'} and figures 02_*.png")
 
 
 if __name__ == "__main__":

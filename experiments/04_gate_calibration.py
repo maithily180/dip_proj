@@ -70,7 +70,7 @@ def real_dev_row(item):
 
 
 def load_dev(reuse: bool = False):
-    f_syn, f_real = CSV / "04_gate_dev_synthetic.csv", CSV / "04_gate_dev_real.csv"
+    f_syn, f_real = CSV / "04_gate_dev_synthetic.csv.gz", CSV / "04_gate_dev_real.csv"
     if reuse and f_syn.exists() and f_real.exists():
         return pd.read_csv(f_syn), pd.read_csv(f_real)
     syn = run_sweep(CONFIGS, split="dev", restore_for=tuple(CONFIGS), agreement_for=tuple(CONFIGS),
@@ -78,7 +78,7 @@ def load_dev(reuse: bool = False):
     syn = syn.assign(dataset="synthetic", gain=syn.psnr_est - syn.psnr_blur)
     syn["good"] = syn.gain > 0
     syn["bad"] = syn.gain < 0
-    syn.to_csv(CSV / "04_gate_dev_synthetic.csv", index=False)
+    syn.to_csv(CSV / "04_gate_dev_synthetic.csv.gz", index=False)
 
     items = lpblur_items(N_REAL_DEV, "dev") + ccpd_items(N_REAL_DEV, "dev")
     raw = pmap(real_dev_row, items, chunksize=2, desc="gate dev (real)")
@@ -165,7 +165,7 @@ def main():
 
     sets = {k: d[d.variant == "text_aware"] for k, d in sets_all.items()}
     gate, strict, grid = calibrate(sets)
-    grid.to_csv(CSV / "04_gate_grid.csv", index=False)
+    grid.to_csv(CSV / "04_gate_grid.csv.gz", index=False)
     print(f"\n== Calibrated gate (best mean net share over the dev sets) ==\n  {gate}")
     print(f"  frozen DEFAULT_GATE: {DEFAULT_GATE}  ->  {'MATCH' if gate == DEFAULT_GATE else 'DIFFERENT - update textdeblur/gate.py'}")
     print(f"  strict alternative (harm <= {100 * MAX_HARM:.0f}% of images on every dev set): {strict}"
@@ -192,7 +192,7 @@ def main():
 
     # --- held-out synthetic evaluation (experiment 3 results)
     test_tab = None
-    f3 = CSV / "03_preprocess.csv"
+    f3 = CSV / "03_preprocess.csv.gz"
     if f3.exists():
         t = pd.read_csv(f3)
         t = t[t.variant.isin(["gray", "text_aware"]) & t.psnr_est.notna()].copy()

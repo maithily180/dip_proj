@@ -1,0 +1,39 @@
+\subsection{Design choices on development data}
+\label{sec:design}
+All configuration choices were made on development data that no reported number uses: the
+synthetic dev split (8 sources per class, the full grid: 3{,}840 trials per variant) and dev
+subsets of LPBlur (147 usable pairs) and CCPD-Blur (150 images), scored by OCR accuracy after RL with
+each variant's estimate (\texttt{experiments/00\_design\_dev.py}). Table~\ref{tab:design}
+summarises the evidence for the text-aware stage.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lccc}
+\toprule
+variant (in front of the baseline estimator) & synthetic success & LPBlur OCR & CCPD-Blur OCR \\
+\midrule
+blurred input, no restoration & -- & 0.234 & 0.768 \\
+plain grayscale (baseline) & 90.7\% & 0.280 & 0.256 \\
+CLAHE & 87.8\% & 0.280 & 0.234 \\
+local contrast normalisation & 91.4\% & 0.289 & 0.339 \\
+homomorphic filtering & 90.5\% & 0.253 & 0.274 \\
+LCN + Laplacian (proposed edge-enhanced stage) & 46.4\% & 0.239 & 0.584$^\ast$ \\
+SNR-adaptive band limit & 79.7\% & 0.332 & 0.171 \\
+band limit 0.5 Nyquist & 75.1\% & 0.463 & 0.137 \\
+band limit 0.3 Nyquist & 55.4\% & \textbf{0.637} & 0.098 \\
+\textbf{multi-band search} $\{1, 0.5, 0.3\}$ (final) & 87.6\% & 0.515 & 0.214 \\
+\bottomrule
+\end{tabular}
+\caption{Development evidence. $^\ast$Scores well only because it returns very short kernels
+(median 8\,px) that barely change the image; it is the worst variant at estimating blur.}
+\label{tab:design}
+\end{table}
+
+Two observations decided the design. First, contrast operators do not move real-plate accuracy and
+the proposed edge-enhanced input halves synthetic estimation success. Second, discarding the upper
+spectrum raises LPBlur accuracy from 0.28 to 0.64 --- but a fixed 0.3 limit leaves no null of a
+short blur inside the band (synthetic success 0\% at $L=5$). The multi-band search keeps most of the
+real-data gain ($+0.235$) at a small synthetic cost ($-3.1$ points). On CCPD-Blur every variant is
+harmful (85\% of images get worse); that is left to the gate. Iteration count (60 vs.\ 30) and TV
+regularisation changed real-plate accuracy by at most $0.01$ in a first development run, so the
+proposal's 30 plain RL iterations were kept.
