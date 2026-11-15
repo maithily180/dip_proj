@@ -1,0 +1,107 @@
+% ================= METHOD =================
+\section{Method}
+\label{sec:method}
+
+\subsection{Blur model}
+A uniform motion blur is modelled as $b = l * k + n$, where $l$ is the sharp image, $n$ is
+noise and $k$ is a line kernel of length $L$ pixels at angle $\theta$ (counter-clockwise from
+the $x$ axis). We generate $k$ by area sampling of the line segment, so non-integer lengths
+and arbitrary angles are exact up to discretisation and an axis-aligned kernel is an exact box.
+In the frequency domain $B = L\cdot K + N$ with
+\begin{equation}
+  |K(\omega)| = \left|\operatorname{sinc}\!\left(L\,\langle\omega, u_\theta\rangle\right)\right|,
+\end{equation}
+which vanishes on parallel lines perpendicular to the motion direction $u_\theta$, spaced
+$1/L$ cycles per pixel apart. Both blur parameters are encoded in this null pattern: its
+orientation gives $\theta$ and its spacing gives $L$.
+
+\subsection{Joint Radon--cepstrum estimator}
+The estimator works on the log-magnitude spectrum $S = \log(\epsilon + |\mathcal{F}\{w\cdot g\}|)$
+of the windowed (Tukey), mean-removed grayscale image $g$, zero-padded to a square grid of at
+least $256\times256$ so that all directions are sampled isotropically. The spectrum is median
+centred and multiplied by a raised-cosine disc that ends at a radial band limit $c$ (a fraction
+of Nyquist; $c=1$ uses the full band).
+
+\paragraph{Radon transform.} The Radon transform $R_\phi(s)$ of $S$ integrates the spectrum along
+lines at angle $\phi$. Along the direction of the null stripes the integration lines follow the
+stripes, so the projection perpendicular to them oscillates with period $1/L$.
+We compute it by rotating the spectrum and summing columns (verified to match
+\texttt{skimage.transform.radon} to numerical precision and $\sim$10$\times$ faster),
+for $\phi = 0,1,\dots,179^\circ$.
+
+\paragraph{Cepstrum along each projection.} The 1-D Fourier transform of each projection is,
+by the projection--slice theorem, a radial slice of the 2-D cepstrum
+$C = \mathcal{F}^{-1}\{\log|B|\}$ (verified numerically in the test suite). For a box blur of
+length $L$, $\log|\operatorname{sinc}|$ has period $1/L$ and its cepstrum has a strong
+\emph{negative} peak at lag $L$. The (direction, lag) map
+$P(\phi, q)$ therefore shows a single deep negative dip at $(\theta, L)$.
+
+\paragraph{Joint search.} The textbook recipe picks the angle first (largest variance of the
+Radon projections) and only then reads the length off the cepstrum. The angle step uses no
+cepstral evidence, so the image's own dominant edge directions compete with the blur stripes
+--- exactly the failure the phase-0 sanity check exposed on text. We instead locate the global
+minimum of $P$ over $\phi\in[0,180)$ and $q\in[q_{\min}, q_{\max}]$, refine the angle at
+$0.25^\circ$ resolution around it and the lag by parabolic interpolation. The angle is still
+Radon-based (it is the projection direction carrying the strongest periodic null pattern) and the
+length is still cepstrum-based; doing both in one search is what makes the classical
+pipeline robust. The textbook two-stage rule is kept as a reference in the evaluation.
+
+\subsection{The text-aware stage}
+\label{sec:textaware}
+The proposal planned a text-contrast pre-processing step (local contrast normalisation and
+edge enhancement) in front of the estimator. We implemented and evaluated nine such operators
+(CLAHE, unsharp masking, Gaussian high-pass, Laplacian, difference of Gaussians, gradient
+magnitude, local contrast normalisation, homomorphic filtering, and the proposed
+LCN+Laplacian combination) on the identical sweep (Section~\ref{sec:preproc}). None of them
+helped, and the edge-emphasising ones hurt under noise: they raise exactly the high-frequency
+band where noise, JPEG residue and resampling artefacts live and where the blur nulls are
+weakest.
+
+The analysis pointed the other way. Plates and printed text in real photographs are small,
+resampled and compressed regions, so the upper part of their spectrum carries little genuine
+signal. The final text-aware stage is therefore a \emph{band-limited multi-band search}: the joint
+search is run three times with band limits $c\in\{1, 0.5, 0.3\}$ and the estimate whose dip is
+most \emph{directional} (largest $z_\angle$, below) is kept. Long blurs, whose nulls are densely
+spaced at low frequencies, are then found in the clean low band; short blurs, whose first null
+lies beyond $0.3$ Nyquist, are still found in the full band. The configuration was chosen on
+development data only (Section~\ref{sec:design}).
+
+\subsection{Confidence gate}
+\label{sec:gate}
+Deconvolution with a wrong kernel does not merely fail to sharpen: it amplifies the wrong
+frequencies and leaves ringing and ghost strokes that make the plate \emph{less} legible. The gate
+turns that silent failure into an explicit refusal (``not confident --- image returned
+unchanged''). It combines three tests, each computed from quantities the estimator already has:
+\begin{itemize}
+  \item \textbf{Dip depth} (\emph{confidence}): depth of the winning dip against the background of
+        the whole (direction, lag) map, in robust standard deviations (median/MAD).
+  \item \textbf{Directional contrast} $z_\angle$: depth of the winning dip against the
+        \emph{other directions at the same lag}. A linear-motion dip exists in one direction
+        only, whereas isotropic structure --- defocus, soft or band-limited content, noise
+        texture --- is deep in every direction and scores near zero.
+  \item \textbf{Split-half agreement}: a uniform blur is the same everywhere, so the estimate is
+        repeated on the left, right, top and bottom halves of the region; the number of halves
+        (0--4) that reproduce the angle (within $10^\circ$) and length (within
+        $\max(2\,\text{px}, 15\%)$) is counted.
+\end{itemize}
+Thresholds are calibrated on development data so as to keep as many helpful restorations as
+possible while letting harmful ones through in at most 5\% of the images of every
+development set (Section~\ref{sec:gateexp}).
+
+\subsection{Non-blind restoration}
+Richardson--Lucy (RL) is the primary restorer. Real images are not periodic and content outside
+the frame is unknown, so we use the masked (unknown-boundary) RL variant: the estimate lives on a
+canvas padded by the kernel radius and the data term is evaluated only on the observed pixels,
+which removes the boundary ringing that periodic RL produces. For the synthetic sweeps, iterations
+are stopped by the discrepancy principle (residual variance reaching the noise variance estimated
+from the finest diagonal Haar detail band with the Donoho--Johnstone MAD estimator), because the best iteration count
+depends strongly on noise (Section~\ref{sec:truepsf}). On real plates we use a fixed 30 iterations
+as in the proposal. Wiener deconvolution with an edge-tapered canvas is implemented as the
+comparison method.
+
+\subsection{Evaluation-only OCR}
+Legibility is measured with an off-the-shelf recogniser (RapidOCR, recognition model only) applied
+to the plate after perspective rectification with the dataset's corner annotations. It is a
+measuring instrument and never part of the restoration. Chinese plates start with a province
+glyph; we score the six alphanumeric characters (character accuracy $=1-$ edit distance$/6$).
+On sharp CCPD plates the instrument reads 100\% of the characters correctly.

@@ -11,11 +11,20 @@ is the outcome of the restoration it guards:
 
 Calibration uses development data only - the synthetic dev split plus the
 LPBlur and CCPD-Blur dev subsets, which are disjoint from every image the final
-numbers are reported on.  The thresholds are chosen to maximise the number of
-helpful restorations kept, subject to the gate letting through harmful ones in
-at most ``MAX_HARM`` of the images of *every* development set.  The chosen
-thresholds are frozen in ``textdeblur.gate.DEFAULT_GATE``; this script checks
-that they match.
+numbers are reported on.  Each candidate gate is scored on every development
+set by its *net share*
+
+    sum(gain of accepted cases) / sum(|gain| of all cases)      in [-1, 1],
+
+the net change it lets through as a fraction of everything at stake in that
+set (dB or OCR accuracy).  It rewards keeping helpful restorations, charges
+every harmful one at its full cost, and is comparable across sets of different
+units and difficulty (refusing everything scores 0).  The gate with the best
+mean net share over the three sets is frozen in
+``textdeblur.gate.DEFAULT_GATE`` (this script checks that they match).  For
+comparison the strictest operating point is also reported: the gate that keeps
+the most helpful restorations while harming at most ``MAX_HARM`` of the images
+of every set.
 
 Held-out evaluation: synthetic test split (from experiment 3's results) here,
 real test images in experiment 5.
@@ -24,6 +33,7 @@ Outputs: results/csv/04_*.csv, results/gate_calibration.json, results/figures/04
 """
 from __future__ import annotations
 
+import argparse
 import itertools
 import json
 
@@ -35,7 +45,7 @@ from real_data import ccpd_items, load_item, lpblur_items
 from sweep import run_sweep
 from textdeblur.deconv import richardson_lucy
 from textdeblur.estimate import BASELINE, TEXT_AWARE, estimate_blur
-from textdeblur.gate import DEFAULT_GATE, GateConfig, auc, confusion, consistency, roc_curve
+from textdeblur.gate import DEFAULT_GATE, STRICT_GATE, GateConfig, auc, confusion, consistency, roc_curve
 from textdeblur.metrics import char_accuracy
 
 CONFIGS = {"baseline": BASELINE, "text_aware": TEXT_AWARE}
@@ -59,7 +69,10 @@ def real_dev_row(item):
     return row
 
 
-def load_dev():
+def load_dev(reuse: bool = False):
+    f_syn, f_real = CSV / "04_gate_dev_synthetic.csv", CSV / "04_gate_dev_real.csv"
+    if reuse and f_syn.exists() and f_real.exists():
+        return pd.read_csv(f_syn), pd.read_csv(f_real)
     syn = run_sweep(CONFIGS, split="dev", restore_for=tuple(CONFIGS), agreement_for=tuple(CONFIGS),
                     desc="gate dev (synthetic)")
     syn = syn.assign(dataset="synthetic", gain=syn.psnr_est - syn.psnr_blur)
@@ -93,31 +106,39 @@ def evaluate(df: pd.DataFrame, g: GateConfig) -> dict:
     return dict(accept=a.mean(), kept_good=(a & df.good.values).sum() / max(df.good.sum(), 1),
                 harmed=(a & df.bad.values).mean(), harm_avoided=(~a & df.bad.values).sum() / max(df.bad.sum(), 1),
                 good_withheld=(~a & df.good.values).sum() / max(df.good.sum(), 1),
-                mean_gain=np.where(a, df.gain.values, 0.0).mean())
+                mean_gain=np.where(a, df.gain.values, 0.0).mean(),
+                net_share=np.where(a, df.gain.values, 0.0).sum() / max(df.gain.abs().sum(), 1e-12))
 
 
-def calibrate(sets: dict[str, pd.DataFrame]) -> tuple[GateConfig, pd.DataFrame]:
-    pooled = pd.concat(sets.values())
-    confs = np.unique(np.round(np.quantile(pooled.confidence, np.linspace(0, 0.9, 19)), 1))
-    angzs = np.unique(np.round(np.quantile(pooled.angular_z, np.linspace(0, 0.9, 19)), 1))
+def calibrate(sets: dict[str, pd.DataFrame]) -> tuple[GateConfig, GateConfig, pd.DataFrame]:
+    """Grid search over the three thresholds.  Returns (best mean net share,
+    strict operating point, full grid).  Ties go to the looser gate."""
+    q = np.linspace(0, 0.9, 19)
+    confs = np.unique(np.round(np.concatenate([np.quantile(d.confidence, q) for d in sets.values()]), 1))
+    angzs = np.unique(np.round(np.concatenate([np.quantile(d.angular_z, q) for d in sets.values()]), 1))
     grid = []
     for c, z, ag in itertools.product(np.r_[0.0, confs], np.r_[0.0, angzs], range(5)):
         g = GateConfig(min_confidence=float(c), min_angular_z=float(z), min_agreement=int(ag))
         ev = {k: evaluate(d, g) for k, d in sets.items()}
         grid.append(dict(min_confidence=c, min_angular_z=z, min_agreement=ag,
+                         share=np.mean([e["net_share"] for e in ev.values()]),
                          feasible=all(e["harmed"] <= MAX_HARM for e in ev.values()),
-                         score=np.mean([e["kept_good"] for e in ev.values()]),
-                         **{f"{k}_{m}": e[m] for k, e in ev.items() for m in ("accept", "kept_good", "harmed")}))
+                         kept=np.mean([e["kept_good"] for e in ev.values()]),
+                         **{f"{k}_{m}": e[m] for k, e in ev.items()
+                            for m in ("accept", "kept_good", "harmed", "net_share")}))
     grid = pd.DataFrame(grid)
-    feas = grid[grid.feasible].sort_values(["score", "min_agreement", "min_angular_z", "min_confidence"],
-                                           ascending=[False, True, True, True])
-    best = feas.iloc[0]
-    return GateConfig(min_confidence=float(best.min_confidence), min_angular_z=float(best.min_angular_z),
-                      min_agreement=int(best.min_agreement)), grid
+    order = ["min_agreement", "min_angular_z", "min_confidence"]
+    best = grid.sort_values(["share"] + order, ascending=[False, True, True, True]).iloc[0]
+    strict = grid[grid.feasible].sort_values(["kept"] + order, ascending=[False, True, True, True]).iloc[0]
+    mk = lambda r: GateConfig(min_confidence=float(r.min_confidence), min_angular_z=float(r.min_angular_z),
+                              min_agreement=int(r.min_agreement))
+    return mk(best), mk(strict), grid
 
 
 def main():
-    syn, real = load_dev()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--reuse", action="store_true", help="reuse the dev CSVs of a previous run")
+    syn, real = load_dev(ap.parse_args().reuse)
     pd.set_option("display.width", 220)
 
     sets_all = {"synthetic": syn, "lpblur": real[real.dataset == "lpblur"], "ccpd": real[real.dataset == "ccpd"]}
@@ -143,19 +164,27 @@ def main():
     print(aucs.round(3).to_string(index=False))
 
     sets = {k: d[d.variant == "text_aware"] for k, d in sets_all.items()}
-    gate, grid = calibrate(sets)
+    gate, strict, grid = calibrate(sets)
     grid.to_csv(CSV / "04_gate_grid.csv", index=False)
-    print(f"\n== Calibrated gate (harm <= {100 * MAX_HARM:.0f}% of images on every dev set) ==\n  {gate}")
+    print(f"\n== Calibrated gate (best mean net share over the dev sets) ==\n  {gate}")
     print(f"  frozen DEFAULT_GATE: {DEFAULT_GATE}  ->  {'MATCH' if gate == DEFAULT_GATE else 'DIFFERENT - update textdeblur/gate.py'}")
+    print(f"  strict alternative (harm <= {100 * MAX_HARM:.0f}% of images on every dev set): {strict}"
+          f"  ->  {'MATCH' if strict == STRICT_GATE else 'DIFFERENT - update STRICT_GATE'}")
+    print("\n== Dev operating points (text-aware) ==")
+    for name, g in (("no gate", GateConfig()), ("frozen gate", DEFAULT_GATE), ("strict", strict)):
+        print(f"  {name:12s}", {k: {m: round(float(v), 3) for m, v in evaluate(d, g).items()
+                                    if m in ("accept", "kept_good", "harmed", "net_share")}
+                                for k, d in sets.items()})
     (RESULTS / "gate_calibration.json").write_text(json.dumps(dict(
-        max_harm=MAX_HARM, calibrated=gate.__dict__, frozen=DEFAULT_GATE.__dict__), indent=2))
+        objective="mean net share over dev sets", calibrated=gate.__dict__, frozen=DEFAULT_GATE.__dict__,
+        strict_max_harm=MAX_HARM, strict=strict.__dict__), indent=2))
 
-    print("\n== Gate behaviour on dev data (frozen gate) ==")
+    print("\n== Gate behaviour on dev data ==")
     rows = []
     for k, d in sets_all.items():
         for v in CONFIGS:
             s = d[d.variant == v]
-            for gname, g in (("no gate", GateConfig()), ("gate", DEFAULT_GATE)):
+            for gname, g in (("no gate", GateConfig()), ("gate", DEFAULT_GATE), ("strict", strict)):
                 rows.append(dict(set=k, variant=v, gate=gname, **evaluate(s, g), **confusion(accept_mask(s, g), s.good.values)))
     dev_tab = pd.DataFrame(rows)
     dev_tab.to_csv(CSV / "04_gate_dev_eval.csv", index=False)
@@ -171,7 +200,7 @@ def main():
         if "agreement" in t and t.agreement.notna().all():
             rows = []
             for (cls, v), s in t.groupby(["cls", "variant"]):
-                for gname, g in (("no gate", GateConfig()), ("gate", DEFAULT_GATE)):
+                for gname, g in (("no gate", GateConfig()), ("gate", DEFAULT_GATE), ("strict", strict)):
                     rows.append(dict(cls=cls, variant=v, gate=gname, n=len(s), **evaluate(s, g),
                                      **confusion(accept_mask(s, g), s.good.values)))
             test_tab = pd.DataFrame(rows)

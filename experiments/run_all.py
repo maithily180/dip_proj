@@ -19,6 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LOGS = HERE.parent / "results" / "logs"
 STEPS = [
+    ("00", "00_design_dev.py"),
     ("01", "01_true_psf_check.py"),
     ("02", "02_characterization_sweep.py"),
     ("03", "03_preprocess_comparison.py"),

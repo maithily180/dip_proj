@@ -1,0 +1,22 @@
+{
+  "objective": "mean net share over dev sets",
+  "calibrated": {
+    "min_confidence": 3.0,
+    "min_angular_z": 0.0,
+    "min_peak_ratio": 0.0,
+    "min_agreement": 2
+  },
+  "frozen": {
+    "min_confidence": 3.0,
+    "min_angular_z": 0.0,
+    "min_peak_ratio": 0.0,
+    "min_agreement": 2
+  },
+  "strict_max_harm": 0.05,
+  "strict": {
+    "min_confidence": 0.0,
+    "min_angular_z": 0.0,
+    "min_peak_ratio": 0.0,
+    "min_agreement": 3
+  }
+}

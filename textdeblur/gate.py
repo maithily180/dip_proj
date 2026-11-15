@@ -32,7 +32,7 @@ from .psf import angle_diff
 
 __all__ = [
     "GateConfig", "GateDecision", "decide", "roc_curve", "auc", "calibrate_threshold",
-    "confusion", "consistency", "DEFAULT_GATE",
+    "confusion", "consistency", "DEFAULT_GATE", "STRICT_GATE",
 ]
 
 
@@ -153,6 +153,12 @@ def confusion(accept: np.ndarray, good: np.ndarray) -> dict[str, int]:
     }
 
 
-#: Gate thresholds calibrated on the synthetic development split
-#: (``experiments/04_gate_calibration.py``).
-DEFAULT_GATE = GateConfig(min_confidence=0.0, min_peak_ratio=0.0)
+#: Gate calibrated on the development data (synthetic dev split, LPBlur and
+#: CCPD-Blur dev subsets) by ``experiments/04_gate_calibration.py``: the
+#: thresholds with the best mean net share (net gain let through / total
+#: stakes) over the three sets.
+DEFAULT_GATE = GateConfig(min_confidence=3.0, min_agreement=2)
+
+#: The strictest operating point of the same calibration: the most helpful
+#: restorations kept while harming at most 5% of the images of every dev set.
+STRICT_GATE = GateConfig(min_agreement=3)

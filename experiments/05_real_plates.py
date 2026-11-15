@@ -38,15 +38,16 @@ from common import CSV, FIG, pmap, setup_matplotlib
 from real_data import ccpd_items, lpblur_items, load_item
 from textdeblur.deconv import richardson_lucy, wiener
 from textdeblur.estimate import BASELINE, TEXT_AWARE, estimate_blur
-from textdeblur.gate import DEFAULT_GATE, consistency, decide
+from textdeblur.gate import DEFAULT_GATE, STRICT_GATE, consistency, decide
 from textdeblur.metrics import char_accuracy, laplacian_variance, psnr, ssim
 
 RL_ITERS = 30
 WIENER_NSR = 0.03
-SYSTEMS = ["blurred", "baseline", "baseline_gated", "text_aware", "text_aware_gated", "wiener"]
+SYSTEMS = ["blurred", "baseline", "baseline_gated", "text_aware", "text_aware_gated", "text_aware_strict", "wiener"]
 LABELS = {
     "blurred": "blurred input", "baseline": "classical baseline", "baseline_gated": "baseline + gate",
-    "text_aware": "text-aware (no gate)", "text_aware_gated": "text-aware + gate", "wiener": "text-aware, Wiener",
+    "text_aware": "text-aware (no gate)", "text_aware_gated": "text-aware + gate",
+    "text_aware_strict": "text-aware + strict gate", "wiener": "text-aware, Wiener",
 }
 
 
@@ -61,14 +62,16 @@ def run(item):
     row = dict(dataset=item.dataset, name=item.name, truth=it.truth)
     for name, cfg in (("baseline", BASELINE), ("text_aware", TEXT_AWARE)):
         est = estimate_blur(b, cfg)
-        agree = consistency(b, est, cfg) if DEFAULT_GATE.needs_agreement else None
+        agree = consistency(b, est, cfg)
         dec = decide(est, DEFAULT_GATE, agree)
+        strict = decide(est, STRICT_GATE, agree)
         row.update({f"{name}_angle": est.angle, f"{name}_length": est.length, f"{name}_conf": est.confidence,
                     f"{name}_angz": est.angular_z, f"{name}_ratio": est.peak_ratio, f"{name}_cutoff": est.cutoff,
-                    f"{name}_agree": agree, f"{name}_accept": dec.accept})
+                    f"{name}_agree": agree, f"{name}_accept": dec.accept, f"{name}_strict_accept": strict.accept})
         out[name] = rl(b, est.psf())
         out[f"{name}_gated"] = out[name] if dec.accept else b
         if name == "text_aware":
+            out["text_aware_strict"] = out[name] if strict.accept else b
             out["wiener"] = np.clip(wiener(b, est.psf(), nsr=WIENER_NSR), 0, 1)
     for s in SYSTEMS:
         text = it.reader(out[s])
@@ -80,6 +83,22 @@ def run(item):
             row[f"psnr_{s}"] = psnr(out[s], it.sharp, 4)
             row[f"ssim_{s}"] = ssim(out[s], it.sharp, 4)
     return row
+
+
+def instrument_check(n: int = 200) -> float:
+    """OCR accuracy on *sharp* CCPD-Base plates: the ceiling of the read-out."""
+    from textdeblur.data import list_ccpd, stable_subset
+    from textdeblur.ocr import PlateReader, rectify_plate
+    from real_data import plate_region
+    from textdeblur.data import imread
+    recs = {str(r.path): r for r in list_ccpd("ccpd_base")}
+    reader = PlateReader()
+    accs = []
+    for p in stable_subset(sorted(recs), n, "instrument"):
+        r = recs[p]
+        region, off = plate_region(imread(p), r.bbox)
+        accs.append(char_accuracy(reader.read_plate(rectify_plate(region, r.corners, off)), r.alnum))
+    return float(np.mean(accs))
 
 
 def boot_ci(x, n=2000, seed=0):
@@ -101,6 +120,8 @@ def summarise(df: pd.DataFrame, dataset: str) -> pd.DataFrame:
             r.update(psnr=df[f"psnr_{s}"].mean(), ssim=df[f"ssim_{s}"].mean())
         if s.endswith("_gated"):
             r["accepted"] = df[f"{s[:-6]}_accept"].mean()
+        if s == "text_aware_strict":
+            r["accepted"] = df["text_aware_strict_accept"].mean()
         rows.append(r)
     return pd.DataFrame(rows)
 
@@ -120,6 +141,7 @@ def main():
     ap.add_argument("--n", type=int, default=400, help="test images per dataset")
     args = ap.parse_args()
 
+    print(f"OCR instrument check: character accuracy on {200} sharp CCPD-Base plates = {instrument_check():.3f}")
     summaries, frames = [], {}
     for dataset, items in (("lpblur", lpblur_items(args.n, "test")), ("ccpd", ccpd_items(args.n, "test"))):
         rows = pmap(run, items, chunksize=2, desc=f"real plates [{dataset}]")
@@ -145,9 +167,10 @@ def main():
               % (df.baseline_length.median(), df.text_aware_length.median(), df.text_aware_cutoff.mean()))
 
     plt = setup_matplotlib()
-    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), sharey=False)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 3.9), sharey=False)
     colors = {"blurred": "#8c8c8c", "baseline": "#b0b0b0", "baseline_gated": "#d9d9d9",
-              "text_aware": "#7fa7d0", "text_aware_gated": "#2a6fb0", "wiener": "#dd8452"}
+              "text_aware": "#7fa7d0", "text_aware_gated": "#2a6fb0", "text_aware_strict": "#1b4f80",
+              "wiener": "#dd8452"}
     for ax, (dataset, title) in zip(axes, [("lpblur", "LPBlur (real motion blur)"),
                                             ("ccpd", "CCPD-Blur (mostly non-linear blur)")]):
         s = summ[summ.dataset == dataset].set_index("system").loc[SYSTEMS]
